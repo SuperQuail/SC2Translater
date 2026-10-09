@@ -6,6 +6,8 @@
 import { computed, ref, shallowRef } from "vue";
 
 import { api, formatCoverage, markupTokens } from "../api";
+import type { Patch } from "./useHistory";
+import { useHistory } from "./useHistory";
 import type {
   ApplyResult,
   AuditReport,
@@ -225,6 +227,8 @@ export function useProject() {
       const loaded = await api.loadKeys(path, source.value, target.value, false);
       doc.value = loaded;
       entries.value = loaded.entries.map((e) => ({ ...e }));
+      // 换了文档，历史从零开始（每个文件一条历史）
+      history.clear();
       originals.clear();
       for (const e of entries.value) originals.set(entryId(e), e.target ?? "");
       dirty.value = new Set();
@@ -273,7 +277,17 @@ export function useProject() {
     await reload();
   }
 
-  function editTarget(entry: Entry, value: string) {
+  /** 撤销 / 重做，每个文件一条历史。 */
+  const history = useHistory();
+
+  /** 按 key 找条目，撤销回放用。 */
+  function entryByKey(key: string): Entry | undefined {
+    return entries.value.find((e) => entryId(e) === key);
+  }
+
+  function editTarget(entry: Entry, value: string, record = true) {
+    const before = entry.target ?? "";
+    if (record && before !== value) history.record(entryId(entry), before, value);
     entry.target = value;
     const id = entryId(entry);
     const base = originals.get(id) ?? "";
@@ -301,28 +315,56 @@ export function useProject() {
           : selectedEntry.value
             ? [selectedEntry.value]
             : [];
-    let n = 0;
+    const patches: Patch[] = [];
     for (const e of targets) {
       if (!(e.target ?? "").trim() && e.source) {
-        editTarget(e, e.source);
-        n += 1;
+        patches.push({ key: entryId(e), before: e.target ?? "", after: e.source });
+        editTarget(e, e.source, false);
       }
     }
-    log("把原文填入译文：" + n + " 条（范围：" + scope + "）");
+    history.recordBatch(patches);
+    log("把原文填入译文：" + patches.length + " 条（范围：" + scope + "）");
   }
 
   /** 清空译文（把已填的删掉）。 */
   function clearTargets(scope: "selected" | "filtered" | "all") {
     const targets =
       scope === "all" ? entries.value : scope === "filtered" ? filtered.value : selectedEntry.value ? [selectedEntry.value] : [];
-    let n = 0;
+    const patches: Patch[] = [];
     for (const e of targets) {
       if ((e.target ?? "").trim()) {
-        editTarget(e, "");
-        n += 1;
+        patches.push({ key: entryId(e), before: e.target ?? "", after: "" });
+        editTarget(e, "", false);
       }
     }
-    log("清空译文：" + n + " 条");
+    history.recordBatch(patches);
+    log("清空译文：" + patches.length + " 条");
+  }
+
+  /**
+   * 撤销 / 重做一步。
+   * 回放的是差分：撤销用 before，重做用 after。
+   */
+  function undo() {
+    const step = history.undo();
+    if (!step) return false;
+    for (const p of [...step].reverse()) {
+      const e = entryByKey(p.key);
+      if (e) editTarget(e, p.before, false);
+    }
+    log("撤销一步（" + step.length + " 处改动）");
+    return true;
+  }
+
+  function redo() {
+    const step = history.redo();
+    if (!step) return false;
+    for (const p of step) {
+      const e = entryByKey(p.key);
+      if (e) editTarget(e, p.after, false);
+    }
+    log("重做一步（" + step.length + " 处改动）");
+    return true;
   }
 
   function revertEdits() {
@@ -405,6 +447,8 @@ export function useProject() {
 
     let applied = 0;
     let skipped = 0;
+    // 一次导入是一步，Ctrl+Z 一下全退回去
+    const patches: Patch[] = [];
     for (const item of items) {
       const hit = item.file
         ? entries.value.find((e) => e.file === item.file && e.key === item.key)
@@ -414,10 +458,12 @@ export function useProject() {
         continue;
       }
       if ((hit.target ?? "") !== item.target) {
-        editTarget(hit, item.target);
+        patches.push({ key: entryId(hit), before: hit.target ?? "", after: item.target });
+        editTarget(hit, item.target, false);
         applied += 1;
       }
     }
+    history.recordBatch(patches);
     log("导入 " + path + "：应用 " + applied + " 条" + (skipped ? "，未匹配 " + skipped + " 条" : ""));
   }
 
@@ -703,6 +749,12 @@ export function useProject() {
     state,
     hasArchive,
     hasProject,
+    // 撤销 / 重做（A 定稿的配套：记忆改动，Ctrl+Z 撤回）
+    undo,
+    redo,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undoDepth: history.depth,
     projectTotals,
     files,
     filtered,

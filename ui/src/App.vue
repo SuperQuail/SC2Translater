@@ -48,8 +48,6 @@ const menu = useContextMenu();
 const projectFile = () => s.projectPath.value;
 const activeDocument = () => s.archive.value;
 const files = useFiles();
-/** 翻译键视图的三种排布（见开发文档第 6 节）。 */
-const keysLayout = ref<"a" | "b" | "c">("a");
 const glossary = useGlossary(projectFile);
 const mt = useMt(projectFile);
 const vcs = useVcs(projectFile, activeDocument);
@@ -274,9 +272,7 @@ onMounted(async () => {
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
     }
-    // 打开一个普通文件：?file=<相对路径>；键视图排布：?keys=a|b|c
-    const keys = params.get("keys");
-    if (keys === "a" || keys === "b" || keys === "c") keysLayout.value = keys;
+    // 打开一个普通文件：?file=<相对路径>
     if (params.has("file")) {
       await files.scan(DEMO_FOLDER);
       await files.open(params.get("file") ?? "");
@@ -417,6 +413,17 @@ function onKeydown(event: KeyboardEvent) {
 
   if (mod) {
     switch (key) {
+      case "z": {
+        event.preventDefault();
+        if (event.shiftKey) project.redo();
+        else project.undo();
+        return;
+      }
+      case "y": {
+        event.preventDefault();
+        project.redo();
+        return;
+      }
       case ",": {
         event.preventDefault();
         settingsPage.value = "appearance";
@@ -626,7 +633,6 @@ function onKeydown(event: KeyboardEvent) {
                   :project="project"
                   :initial-view="initialView"
                   :menu="menu"
-                  :keys-layout="keysLayout"
                 />
               </div>
               <div slot="end" v-show="prefs.right" class="pane">

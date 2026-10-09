@@ -194,7 +194,8 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 | `?recent=1` | 只加载「最近的项目」，不打开文件 —— 用来截开始页 |
 | `&skin=jb` | 整套皮肤切成 JetBrains（Ring UI 令牌） |
 | `&pane=…` | 指定左栏面板 |
-| `&view=table\|kv\|json` | 指定中间视图 |
+| `&view=table\|kv\|json` | 指定中间视图（键视图 A 定稿：单标签内切换） |
+| `&file=<相对路径>` | 打开一个普通文件（文本 / 图片 / 不受支持） |
 | `&fill=1` / `&overwrite=1` / `&help=1` / `&mt=1` | 弹对应面板 |
 
 **新增界面就顺手加一个深链参数**，否则那个状态截不出来，也就没法给用户看。

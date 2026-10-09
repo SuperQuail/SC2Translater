@@ -38,7 +38,11 @@ const resultLine = computed(() => {
 
     <span v-if="props.project.dirtyCount.value" class="item warn">
       未保存 {{ props.project.dirtyCount.value }} 处
-      <button class="mini" @click="props.project.revertEdits">放弃</button>
+      <button class="mini" :disabled="!props.project.canUndo.value" title="撤销（Ctrl+Z）" @click="props.project.undo">撤销</button>
+      <button class="mini" @click="props.project.revertEdits">全部放弃</button>
+    </span>
+    <span v-if="props.project.canUndo.value" class="item faint" title="可撤销的步数（Ctrl+Z 撤回，Ctrl+Y 重做）">
+      记忆 {{ props.project.undoDepth.value }} 步
     </span>
 
     <span class="spacer"></span>
@@ -101,5 +105,6 @@ const resultLine = computed(() => {
   background: rgba(255, 255, 255, 0.12);
   color: inherit;
 }
-.mini:hover { background: rgba(255, 255, 255, 0.22); }
+.mini:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
+.mini:disabled { opacity: 0.4; }
 </style>

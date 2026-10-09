@@ -12,6 +12,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use sc2trans_core::link::{self, Link};
 use sc2trans_core::locales::{locale_code_ok, locale_display};
 use sc2trans_core::model::status_label;
 use sc2trans_core::ops::{self, ApplyOptions};
@@ -36,6 +37,8 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// 查一份文档该关联哪份同名 JSON（不做任何写操作）
+    Link { archive: PathBuf },
     /// 归档概览：容器参数、组件数、存在的语言
     Info { archive: PathBuf },
 
@@ -253,6 +256,32 @@ fn run(cli: &Cli) -> Result<()> {
             Ok(())
         }
 
+        Command::Link { archive } => {
+            let result = link::link(archive);
+            let state = match &result {
+                Link::Linked { .. } => "linked",
+                Link::ForeignSchema { .. } => "foreign_schema",
+                Link::Missing { .. } => "missing",
+            };
+            if cli.json {
+                print_json(&serde_json::json!({
+                    "document": archive.display().to_string(),
+                    "json": result.path().display().to_string(),
+                    "state": state,
+                }))?;
+            } else {
+                println!("文档  {}", archive.display());
+                println!("同名  {}", result.path().display());
+                match &result {
+                    Link::Linked { .. } => println!("状态  已关联（是一份 sc2trans.keys.v1）"),
+                    Link::ForeignSchema { .. } => {
+                        println!("状态  同名 JSON 存在，但不是翻译键格式（schema 不是 sc2trans.keys.*）")
+                    }
+                    Link::Missing { .. } => println!("状态  不存在（本工具不会自动创建）"),
+                }
+            }
+            Ok(())
+        }
         Command::Audit { archive, source } => {
             check_locale(source)?;
             let v = ops::audit(archive, source)?;

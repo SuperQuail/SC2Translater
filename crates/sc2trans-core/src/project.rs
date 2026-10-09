@@ -37,6 +37,24 @@ pub struct ProjectFile {
     /// 上次扫描到的统计（用于文件列表展示，避免每次重新解包）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<FileStats>,
+    /// 关联上的同名 JSON（同目录、同主文件名）。没有就是 None。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keys_json: Option<String>,
+}
+
+/// 项目级的默认值：新加进来的文件取这里的语言对。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Defaults {
+    #[serde(default = "default_source")]
+    pub source: String,
+    #[serde(default = "default_target")]
+    pub target: String,
+}
+
+impl Default for Defaults {
+    fn default() -> Self {
+        Self { source: default_source(), target: default_target() }
+    }
 }
 
 /// 一个文档的缓存统计。
@@ -86,6 +104,7 @@ impl ProjectFile {
             target: default_target(),
             output: None,
             stats: None,
+            keys_json: None,
         }
     }
 }
@@ -106,6 +125,9 @@ pub struct Project {
     pub name: String,
     #[serde(default)]
     pub files: Vec<ProjectFile>,
+    /// 语言对的默认值。老项目文件里没有这一项，normalize 时从第一个文件推出来。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defaults: Option<Defaults>,
     /// 当前选中的文件下标。
     #[serde(default)]
     pub active: usize,
@@ -125,6 +147,7 @@ impl Default for Project {
             format: PROJECT_FORMAT,
             name: "未命名项目".to_string(),
             files: Vec::new(),
+            defaults: None,
             active: 0,
             created_at: now.clone(),
             updated_at: now,
@@ -204,6 +227,13 @@ impl Project {
         }
         if self.format == 0 {
             self.format = PROJECT_FORMAT;
+        }
+        // 迁移：老项目文件没有 defaults，用第一个文件的语言对补上（不猜别的）
+        if self.defaults.is_none() {
+            self.defaults = Some(match self.files.first() {
+                Some(f) => Defaults { source: f.source.clone(), target: f.target.clone() },
+                None => Defaults::default(),
+            });
         }
         if self.name.trim().is_empty() {
             self.name = "未命名项目".to_string();
@@ -326,6 +356,40 @@ impl RecentProjects {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn defaults_migrate_from_first_file() {
+        let mut p = Project::new("战役");
+        p.add_file("D:/m/a.SC2Map");
+        p.files[0].source = "enGB".into();
+        p.files[0].target = "zhTW".into();
+        assert!(p.defaults.is_none());
+        p.normalize();
+        let d = p.defaults.unwrap();
+        assert_eq!(d.source, "enGB");
+        assert_eq!(d.target, "zhTW");
+    }
+
+    #[test]
+    fn defaults_survive_roundtrip_and_are_not_overwritten() {
+        let mut p = Project::new("战役");
+        p.add_file("D:/m/a.SC2Map");
+        p.defaults = Some(Defaults { source: "enUS".into(), target: "zhCN".into() });
+        p.files[0].source = "jaJP".into();
+        p.normalize();
+        // 显式设过的默认值不该被文件的当前值盖掉
+        assert_eq!(p.defaults.unwrap().source, "enUS");
+    }
+
+    #[test]
+    fn keys_json_roundtrips() {
+        let mut p = Project::new("战役");
+        p.add_file("D:/m/a.SC2Map");
+        p.files[0].keys_json = Some("D:/m/a.json".into());
+        let text = p.to_json().unwrap();
+        let back = Project::from_json(&text).unwrap();
+        assert_eq!(back.files[0].keys_json.as_deref(), Some("D:/m/a.json"));
+    }
 
     #[test]
     fn add_file_is_idempotent() {
