@@ -5,10 +5,20 @@ import type {
   ApplyResult,
   AppInfo,
   AuditReport,
+  Glossary,
+  GlossaryBundle,
   InspectReport,
+  MtConfig,
+  MtResult,
+  MtSuggestion,
+  ToolStatus,
   Project,
   RecentEntry,
+  Term,
   TranslationDocument,
+  VcsCommit,
+  VcsRefs,
+  VcsStatusBundle,
   VerifyReport,
 } from "./types";
 
@@ -81,6 +91,54 @@ export const api = {
   ) => call<ApplyResult>("fill_locales", { archive, source, locales, onlyMissing, withOriginal, out }),
 
   verify: (archive: string, deep: boolean) => call<VerifyReport>("verify", { archive, deep }),
+
+  // --- 专有名词库 ---
+  glossaryLoad: (projectFile: string | null) =>
+    call<GlossaryBundle>("glossary_load", { projectFile: projectFile ?? null }),
+  glossarySave: (scope: string, glossary: Glossary, projectFile: string | null) =>
+    call<{ path: string; terms: number }>("glossary_save", { scope, glossary, projectFile }),
+  glossaryPick: (save: boolean, defaultName: string) =>
+    call<string | null>("glossary_pick", { save, defaultName }),
+  glossaryRead: (path: string, scope: string) =>
+    call<{ terms: Term[]; count: number; format: string }>("glossary_read", { path, scope }),
+  glossaryWrite: (path: string, glossary: Glossary) =>
+    call<{ path: string; terms: number }>("glossary_write", { path, glossary }),
+
+  // --- 机翻参考 ---
+  mtConfigGet: () => call<MtConfig>("mt_config_get"),
+  mtConfigSet: (config: MtConfig) => call<MtConfig>("mt_config_set", { config }),
+  mtTranslate: (text: string, projectFile: string | null) =>
+    call<MtSuggestion>("mt_translate", { text, projectFile: projectFile ?? null }),
+  mtTranslateMany: (texts: string[], projectFile: string | null) =>
+    call<{ results: MtResult[] }>("mt_translate_many", { texts, projectFile: projectFile ?? null }),
+  mtClearCache: () => call<{ cleared: number }>("mt_clear_cache"),
+
+  // --- 版本管理 ---
+  vcsTool: () => call<ToolStatus>("vcs_tool"),
+  vcsReinstall: () => call<ToolStatus>("vcs_reinstall"),
+  vcsRepoPath: (projectFile: string, document: string) =>
+    call<string>("vcs_repo_path", { projectFile, document }),
+  vcsStatus: (projectFile: string, document: string) =>
+    call<VcsStatusBundle>("vcs_status", { projectFile, document }),
+  vcsInit: (projectFile: string, document: string) =>
+    call<{ output: string }>("vcs_init", { projectFile, document }),
+  vcsCommit: (projectFile: string, document: string, message: string) =>
+    call<{ staged: string; commit: string }>("vcs_commit", { projectFile, document, message }),
+  vcsLog: (projectFile: string, document: string, limit: number) =>
+    call<VcsCommit[]>("vcs_log", { projectFile, document, limit }),
+  vcsDiff: (projectFile: string, document: string, from: string | null, to: string | null) =>
+    call<{ text: string }>("vcs_diff", { projectFile, document, from, to }),
+  vcsRefs: (projectFile: string, document: string) =>
+    call<VcsRefs>("vcs_refs", { projectFile, document }),
+  vcsRefAction: (projectFile: string, document: string, action: string, value: string) =>
+    call<{ output: string; command: string }>("vcs_ref_action", { projectFile, document, action, value }),
+  vcsPack: (projectFile: string, document: string, out: string) =>
+    call<{ output: string; path: string }>("vcs_pack", { projectFile, document, out }),
+  vcsPickPack: (defaultName: string) => call<string | null>("vcs_pick_pack", { defaultName }),
+  vcsUnpack: (projectFile: string, document: string) =>
+    call<{ output: string }>("vcs_unpack", { projectFile, document }),
+  vcsReveal: (projectFile: string, document: string) =>
+    call<void>("vcs_reveal", { projectFile, document }),
   reveal: (path: string) => call<void>("reveal", { path }),
 };
 

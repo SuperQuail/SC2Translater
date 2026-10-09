@@ -82,6 +82,7 @@ target/release/sc2trans.exe apply   "...\你的地图.SC2Map" keys.json -o 汉�
 | `apply <archive> <json> [-o out]` | 写回译文；`--fill-missing/--with-original/--sort/--force` |
 | `fill <archive> --locales all` | **补全默认语言**：用源语言填充「没有语言文件」的语言 |
 | `seed <archive> [-o out]` | 同 fill，只补当前目标语言 |
+| `vcs ...` | 版本管理走内置的 `sc2diff`（`dist/sc2diff.exe`），命令见其 `--help` |
 | `verify <archive>` | 容器自检 + 字符串表往返回读 |
 
 **给 agent 的约定**：任何子命令加 `--json`（放在前后都行），
@@ -128,7 +129,58 @@ cargo build --release
 > ⚠️ 桌面壳必须内嵌 `ui/dist`（custom-protocol 特性，**已是默认**）；
 > 否则 release 版会去连 devUrl，在没有 dev server 的机器上就是一片空白窗口（已实测）。
 
-### 3.3 Python 调研原型
+### 3.3 专有名词库（术语表）
+
+![专有名词库](docs/design/gui-glossary.png)
+
+汉化最怕同一个东西翻成好几个词。术语表分两个作用域，**查表时项目覆盖全局**：
+
+| 作用域 | 存哪 | 用途 |
+| --- | --- | --- |
+| 全局 | 应用数据目录 `glossary.global.json` | 所有项目共用（单位名、阵营名这类走到哪都一样的） |
+| 项目 | 项目文件旁边的 `<项目名>.glossary.json` | 只对当前项目生效，可覆盖全局同名词条 |
+
+* 活动栏点「书」图标打开，**Ctrl+F** 直接聚焦搜索（面板打开时 Ctrl+F 搜的是术语，不是键表）；
+* 原文 / 译名 / 备注 / 领域都能搜，原文精确匹配排最前；
+* 选中一条键时，右侧详情自动列出**命中的术语**，点箭头即用该译名；
+* 详情面板上「加入项目术语库 / 加入全局库」把当前译文一键收词；
+* 支持 CSV / JSON 导入导出（CSV 四列：原文、译名、备注、领域）。
+
+### 3.4 机翻参考
+
+两个 provider，**结果永远不自动写进键里** —— 机翻直接落库等于把错误固化进地图：
+
+| provider | 说明 |
+| --- | --- |
+| 离线：术语库拼装 | 不联网。把命中的术语换成译名，其余保持原文。术语是对的，语序自己来。**零配置可用** |
+| 在线：OpenAI 兼容接口 | 填 `base_url` / `api_key` / `model`。官方、DeepSeek、本地 Ollama、one-api 网关都走这套 |
+
+* **Ctrl+M** 机翻当前条，**Ctrl+Shift+M** 批量机翻当前筛选结果（最多 50 条）；
+* 结果单独一块展示，带「离线/在线」标签、命中术语与性质说明，点「用作译文」才落进译文框；
+* 带磁盘缓存，同一句话不会反复打接口。
+
+### 3.5 版本管理（内置 SC2Diff）
+
+![版本管理](docs/design/gui-vcs.png)
+
+**静默安装**：SC2Diff 随本程序一起发（`dist/sc2diff.exe`），首次用到版本管理时自动装到
+`%APPDATA%/net.miyin.sc2trans/tools/sc2diff/` —— 不问、不弹浏览器、不要求装工具链。
+
+交互按 JetBrains 那套来（**不需要敲命令**）：勾选式提交、对话框建分支/打标签；
+同时每次动作都显示**等价命令行**可一键复制，习惯 CLI 的人照样能用（命令式操作也兼容）。
+
+| 能力 | 说明 |
+| --- | --- |
+| 仓库 | 每个文档一个仓库，放在 `<项目名>.repos/<文档名>/`，互不干扰 |
+| 提交 | 填信息 -> 一个按钮 -> `add -A` + `commit` |
+| 历史 | 提交列表，点一条看它与上一个提交的**语义 diff** |
+| 分支 / 标签 | 右键分支行即可切换 / 新建 / 打标签 |
+| 导出 | 从仓库打包回一份可被编辑器打开的文档 |
+| 同步 | 外部改过地图后，「同步工作树」把当前文档重新解包进仓库 |
+
+CLI 侧同一套能力也在：`sc2diff -C <repo> status|add|commit|log|diff|branch|checkout|tag|pack|unpack`。
+
+### 3.6 Python 调研原型
 
 事实验证与交叉判据都在这一份里，Rust 实现与它做差分测试。
 
@@ -176,9 +228,11 @@ uv run pytest
 ```
 crates/
   sc2mpq/          MPQ 容器读写（SC2 的 208 字节混合头 / HET / BET / 六头部 MD5 摘要）
-  sc2trans-core/   领域核心：字符串表、locale 模型、JSON、extract/apply/seed/audit/verify
+  sc2trans-core/   领域核心：字符串表、locale 模型、JSON、extract/apply/seed/audit/verify、
+                   project（项目模型）、glossary（术语库）、mt（机翻参考）、vcs（内置 SC2Diff）
   sc2trans-cli/    sc2trans 命令行（面向 agent）
 src-tauri/         Tauri 2 桌面壳（只做命令转发，业务全在 core）
+                   resources/sc2diff.exe —— 内置的版本管理工具（首次使用时静默安装）
 ui/                Vue 3 + TypeScript + Vite 前端
 python/            uv 管理的调研原型 + 对照实现（Rust 与它做差分测试）
 docs/research/     实测调研：MPQ 格式规格、SC2 多语言机制

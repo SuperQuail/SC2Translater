@@ -31,6 +31,17 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 // 演示模式：造一份够大的样本，让表格、过滤、编辑都能在浏览器里真跑一遍
 // --------------------------------------------------------------------------- //
 
+/** 演示用的术语：覆盖面尽量像真的（含中英混排、简称、大小写敏感）。 */
+const DEMO_TERMS = [
+  { id: "t1", source: "Infested Terran", target: "被感染的陆战队员", note: "SC2 官方译法", domain: "单位", case_sensitive: true, scope: "global" as const },
+  { id: "t2", source: "Hive", target: "主巢", note: "", domain: "建筑", case_sensitive: true, scope: "global" as const },
+  { id: "t3", source: "Warp Conduit", target: "时空航道", note: "", domain: "建筑", case_sensitive: true, scope: "global" as const },
+  { id: "t4", source: "Hybrid", target: "混合体", note: "不要译成「混血」", domain: "单位", case_sensitive: false, scope: "global" as const },
+  { id: "t5", source: "Brood Lord", target: "巢虫领主", note: "", domain: "单位", case_sensitive: true, scope: "global" as const },
+  { id: "t6", source: "Stukov", target: "斯托科夫", note: "本作主角，务必统一", domain: "人物", case_sensitive: true, scope: "project" as const },
+  { id: "t7", source: "Zerg", target: "异虫", note: "不是「虫族」", domain: "阵营", case_sensitive: true, scope: "project" as const },
+];
+
 /** 演示模式下的示例归档路径；浏览器里加 ?demo=1 可以直接进工作区。 */
 export const DEMO_ARCHIVE = "D:/示例/Stukov2.SC2Map";
 
@@ -256,6 +267,108 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
     case "verify":
       return { path: archive, raw_chunk_size: 0, header_md5_valid: true, het_roundtrip_exact: true, bet_roundtrip_exact: true, het_vs_classic_mismatch: [], md5_ok: 49, md5_bad: 2, crc_ok: 50, crc_bad: 1, healthy: true, string_tables_roundtrip_exact: true } satisfies VerifyReport;
     case "reveal":
+      return null;
+
+    // --- 专有名词库（演示数据） ---
+    case "glossary_load":
+      return {
+        global: { format: 1, name: "全局术语库", terms: DEMO_TERMS.filter((t) => t.scope === "global") },
+        project: { format: 1, name: "项目术语库", terms: DEMO_TERMS.filter((t) => t.scope === "project") },
+        global_path: "C:/Users/you/AppData/Roaming/net.miyin.sc2trans/glossary.global.json",
+        project_path: "D:/示例/斯托科夫战役.glossary.json",
+      };
+    case "glossary_save":
+      return { path: "demo", terms: (args?.glossary as { terms?: unknown[] })?.terms?.length ?? 0 };
+    case "glossary_pick":
+      return args?.save ? "D:/示例/术语库导出.csv" : "D:/示例/术语库导入.csv";
+    case "glossary_read":
+      return { terms: DEMO_TERMS, count: DEMO_TERMS.length, format: String(args?.path ?? "").endsWith(".csv") ? "csv" : "json" };
+    case "glossary_write":
+      return { path: args?.path, terms: (args?.glossary as { terms?: unknown[] })?.terms?.length ?? 0 };
+
+    // --- 机翻 ---
+    case "mt_config_get":
+      return { provider: "offline", base_url: "https://api.openai.com/v1", api_key: "", model: "gpt-4o-mini", target_language: "简体中文", timeout_secs: 30 };
+    case "mt_config_set":
+      return args?.config;
+    case "mt_translate": {
+      const src = String(args?.text ?? "");
+      const hit = DEMO_TERMS.filter((t) => src.includes(t.source));
+      let out = src;
+      for (const t of [...hit].sort((a, b) => b.source.length - a.source.length)) {
+        out = out.split(t.source).join(t.target);
+      }
+      return {
+        text: out,
+        provider: "offline",
+        terms: hit,
+        note: hit.length
+          ? "离线模式：只替换了命中的 " + hit.length + " 个术语，其余保持英文 —— 术语是对的，语序还得你自己来"
+          : "离线模式：这句话没有命中任何术语，下面是原文（想看真正的机翻请到「机翻设置」里配在线接口）",
+        cached: false,
+      };
+    }
+    case "mt_translate_many": {
+      const texts = (args?.texts as string[]) ?? [];
+      const results = texts.map((t) => {
+        const hit = DEMO_TERMS.filter((x) => t.includes(x.source));
+        let out = t;
+        for (const term of [...hit].sort((a, b) => b.source.length - a.source.length)) out = out.split(term.source).join(term.target);
+        return { ok: true, suggestion: { text: out, provider: "offline", terms: hit, note: "离线模式：术语拼装", cached: false } };
+      });
+      return { results };
+    }
+    case "mt_clear_cache":
+      return { cleared: 12 };
+
+    // --- 版本管理 ---
+    case "vcs_tool":
+      return { id: "sc2diff", name: "SC2Diff", installed: true, version: "0.1.0-a2", path: "C:/Users/you/AppData/Roaming/net.miyin.sc2trans/tools/sc2diff/sc2diff.exe", source: "bundled", size_bytes: 1413632, message: null };
+    case "vcs_reinstall":
+      return { id: "sc2diff", name: "SC2Diff", installed: true, version: "0.1.0-a2", path: "demo", source: "bundled", size_bytes: 1413632, message: null };
+    case "vcs_repo_path":
+      return "D:/示例/斯托科夫战役.repos/Stukov2";
+    case "vcs_status":
+      return {
+        repo: "D:/示例/斯托科夫战役.repos/Stukov2",
+        status: {
+          is_repo: true,
+          branch: "main",
+          has_commits: true,
+          changes: [
+            { index: " ", worktree: "M", name: "Objects" },
+            { index: "M", worktree: " ", name: "Triggers" },
+            { index: "?", worktree: "?", name: "zhCN.SC2Data\\LocalizedData\\GameStrings.txt" },
+          ],
+          staged: 1,
+          dirty: 1,
+          untracked: 1,
+          raw: "On branch main\n\nChanges to be committed:\n        modified: Triggers\n\nChanges not staged for commit:\n        modified: Objects\n\nUntracked files:\n        zhCN.SC2Data\\LocalizedData\\GameStrings.txt",
+        },
+        tool: { id: "sc2diff", name: "SC2Diff", installed: true, version: "0.1.0-a2", path: "demo", source: "bundled", size_bytes: 1413632, message: null },
+      };
+    case "vcs_init":
+      return { output: "Initialized empty sc2diff repository\n  imported Stukov2.SC2Map\n  components: 46" };
+    case "vcs_commit":
+      return { staged: "add      Objects\n", commit: "[main 63e4df69] 汉化 zhCN\n  46 component(s) in tree" };
+    case "vcs_log":
+      return [
+        { sha: "63e4df69b97bf3f0", short: "63e4df69", author: "sc2diff", date: "1791511789", message: "汉化 zhCN：补全 677 条" },
+        { sha: "29645933b58c8a16", short: "29645933", author: "sc2diff", date: "1791511777", message: "import" },
+      ];
+    case "vcs_diff":
+      return { text: "diff HEAD~1 HEAD\n  Objects\n    Param/Value/0F5D0539: \"Hive Destroyed\" -> \"主巢被摧毁\"\n  1 changed, 0 added, 0 removed" };
+    case "vcs_refs":
+      return { branches: ["main", "zhcn-wip"], tags: ["v0.1"] };
+    case "vcs_ref_action":
+      return { output: "Switched to branch " + String(args?.value ?? ""), command: "sc2diff -C <repo> " + String(args?.action ?? "") + " " + String(args?.value ?? "") };
+    case "vcs_pack":
+      return { output: "packed D:/示例/out.SC2Map\n  878025 bytes, 51 blocks", path: String(args?.out ?? "") };
+    case "vcs_pick_pack":
+      return "D:/示例/Stukov2.repacked.SC2Map";
+    case "vcs_unpack":
+      return { output: "unpacked 46 components" };
+    case "vcs_reveal":
       return null;
     default:
       throw new Error("演示模式下没有实现这条命令: " + cmd);

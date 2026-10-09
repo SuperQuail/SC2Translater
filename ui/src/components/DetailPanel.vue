@@ -5,9 +5,14 @@
 import { computed, ref, watch } from "vue";
 
 import { STATUS_META, statusLabel } from "../api";
+import type { GlossaryApi } from "../composables/useGlossary";
+import { makeLocalId, matchTerms } from "../composables/useGlossary";
+import type { MtApi } from "../composables/useMt";
 import type { Project } from "../composables/useProject";
+import MtPanel from "./MtPanel.vue";
 
-const props = defineProps<{ project: Project }>();
+const props = defineProps<{ project: Project; mt: MtApi; glossary: GlossaryApi }>();
+const emit = defineEmits<{ (e: "settings"): void }>();
 const s = props.project.state;
 
 const entry = computed(() => props.project.selectedEntry.value);
@@ -52,6 +57,29 @@ const label = computed(() => statusLabel(entry.value?.status ?? ""));
 const sourceLength = computed(() => (entry.value?.source ?? "").length);
 const targetLength = computed(() => (targetDraft.value ?? "").length);
 const tokens = computed(() => props.project.selectedMarkup.value);
+
+/** 当前条目命中的术语（来自全局 + 项目合并视图）。 */
+const matchedTerms = computed(() => matchTerms(props.glossary.merged.value, entry.value?.source ?? ""));
+
+const activeTermId = computed(() => {
+  const src = entry.value?.source?.trim();
+  if (!src) return "";
+  return makeLocalId(src, "global");
+});
+
+/** 把当前条目的「原文 -> 译文」收进术语库。 */
+function addCurrentToGlossary(scope: "global" | "project") {
+  const e = entry.value;
+  if (!e?.source || !e.target?.trim()) return;
+  props.glossary.addFromEntry(e.source, e.target, scope);
+}
+
+/** 用某条术语的译名覆盖译文（单条动作，用户显式点）。 */
+function useTerm(target: string) {
+  if (!entry.value) return;
+  targetDraft.value = target;
+  props.project.editTarget(entry.value, target);
+}
 </script>
 
 <template>
@@ -83,6 +111,26 @@ const tokens = computed(() => props.project.selectedMarkup.value);
         </div>
       </section>
 
+      <section v-if="matchedTerms.length" class="section">
+        <h3>命中的术语 <span class="len">{{ matchedTerms.length }}</span></h3>
+        <div class="glossaryHits">
+          <div
+            v-for="t in matchedTerms"
+            :key="t.id"
+            class="hit"
+            :class="{ active: t.id === activeTermId }"
+            :title="t.note || t.source"
+          >
+            <span class="hitSrc mono">{{ t.source }}</span>
+            <span class="hitArrow">→</span>
+            <span class="hitTgt">{{ t.target }}</span>
+            <!-- @ts-expect-error vscode-button 是自定义元素 -->
+            <vscode-button secondary icon-only icon="arrow-right" title="用这个译名" @click="useTerm(t.target)"></vscode-button>
+          </div>
+        </div>
+        <p class="glossaryHint">来自术语库（项目覆盖全局）。点箭头即用该译名。</p>
+      </section>
+
       <section class="section grow">
         <h3>
           译文 <span class="len">{{ targetLength }} 字符</span>
@@ -100,6 +148,22 @@ const tokens = computed(() => props.project.selectedMarkup.value);
           <!-- @ts-expect-error 自定义元素 -->
           <vscode-button secondary icon="arrow-down" @click="useSource">用原文填入</vscode-button>
           <!-- @ts-expect-error 自定义元素 -->
+          <vscode-button
+            secondary
+            icon="book"
+            :disabled="!entry.source || !targetDraft.trim()"
+            title="把这条的原文与译文收进术语库"
+            @click="addCurrentToGlossary('project')"
+          >加入项目术语库</vscode-button>
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-button
+            secondary
+            icon="globe"
+            :disabled="!entry.source || !targetDraft.trim()"
+            title="加入全局术语库（所有项目共用）"
+            @click="addCurrentToGlossary('global')"
+          >加入全局库</vscode-button>
+          <!-- @ts-expect-error 自定义元素 -->
           <vscode-button secondary icon="clear-all" @click="clearTarget">清空</vscode-button>
           <!-- @ts-expect-error 自定义元素 -->
           <vscode-button secondary icon="copy" @click="copy(targetDraft, 'target')">
@@ -107,6 +171,8 @@ const tokens = computed(() => props.project.selectedMarkup.value);
           </vscode-button>
         </div>
       </section>
+
+      <MtPanel :mt="props.mt" :entry="entry" @use="useTerm" @settings="emit('settings')" />
     </template>
 
     <div v-else class="placeholder">
@@ -200,4 +266,17 @@ const tokens = computed(() => props.project.selectedMarkup.value);
 .row-actions { display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center; }
 
 .placeholder { color: var(--text-faint); font-size: var(--fs-sm); line-height: 1.7; padding: var(--s6) 0; }
+
+.glossaryHits { display: flex; flex-direction: column; gap: 2px; }
+.hit {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 2px var(--s3); border-radius: var(--r1);
+  font-size: var(--fs-xs);
+}
+.hit:hover { background: var(--list-hover); }
+.hit.active { background: var(--list-active-bg); color: var(--list-active-fg); }
+.hitSrc { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); }
+.hitArrow { color: var(--text-faint); }
+.hitTgt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.glossaryHint { margin: 0; font-size: 11px; color: var(--text-faint); }
 </style>

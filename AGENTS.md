@@ -39,6 +39,9 @@
 | 压缩 | `flate2` / `bzip2` / `lzma-rs`（可关掉 `bzip2-backend` feature） |
 | GUI | Tauri 2 + Vue 3 + TypeScript + Vite，pnpm 包管理 |
 | GUI 控件 | **VS Code 官方控件**：`@vscode-elements/elements`（MIT，38 个 Web Components）+ `@vscode/codicons`（官方图标字体）+ VS Code Dark Modern 主题令牌 |
+| 术语库 | `crates/sc2trans-core/src/glossary.rs`（全局 / 项目两个作用域，项目覆盖全局） |
+| 机翻 | `crates/sc2trans-core/src/mt.rs`（离线术语拼装 / 任意 OpenAI 兼容接口，带磁盘缓存） |
+| 版本管理 | `crates/sc2trans-core/src/vcs.rs` 驱动**内置**的 SC2Diff（`src-tauri/resources/sc2diff.exe`） |
 | Python 原型 | uv 管理，放在 `python/` 子目录 |
 
 ```
@@ -147,6 +150,13 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 12. **不要用「补默认值」的方式覆盖官方主题令牌**。scripts/gen-vscode-theme.py 的补缺表现在会
     跳过官方已有的键 —— 早先没有跳过，把 button-secondaryBackground 从透明的 #00000000 盖成了
     灰底，secondary 按钮立刻就不是 VS Code 的样子了。
+13. **机翻结果永远不自动写进键里**。这是产品决定，不是实现细节：机翻直接落库等于把错误固化进地图。
+    只能在详情面板里由用户显式点「用作译文」。加新功能时别顺手「自动填充」。
+14. **SC2Diff 是内置的，不是要用户自己装的**。它随 `src-tauri/resources/sc2diff.exe` 一起发，
+    首次用到版本管理时静默复制到 `%APPDATA%/net.miyin.sc2trans/tools/sc2diff/`。
+    发布时记得把 `sc2diff.exe` 和 `SC2Translater.exe` **放在同一个目录**（见 dist/）。
+15. **PowerShell 脚本里一律用英文提示**（第 6 条）：这条已经踩了三次 —— 中文字符串在无 BOM 的
+    UTF-8 脚本里会被 PS 按 ANSI 解读，直接把脚本解析崩掉。
 
 ---
 

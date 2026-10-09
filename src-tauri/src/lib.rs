@@ -429,6 +429,450 @@ async fn default_json_name(archive: String, target: String) -> String {
     format!("{stem}.{target}.keys.json")
 }
 
+// =========================================================================== //
+// 专有名词库 / 机翻参考 / 版本管理（内置 SC2Diff）
+// =========================================================================== //
+
+use sc2trans_core::glossary::{self, Glossary, Scope};
+use sc2trans_core::mt::{MtConfig, MtEngine};
+use sc2trans_core::vcs;
+
+/// 读全局 + 项目两份术语库。
+#[command]
+async fn glossary_load(app: tauri::AppHandle, project_file: Option<String>) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let global_path = glossary::global_path(&dir);
+        let global = if global_path.is_file() {
+            Glossary::load(&global_path).unwrap_or_else(|_| Glossary::new("全局术语库"))
+        } else {
+            Glossary::new("全局术语库")
+        };
+        let mut project = Glossary::new("项目术语库");
+        let mut project_path = None;
+        if let Some(pf) = project_file.as_ref() {
+            let path = glossary::project_path(Path::new(pf));
+            if path.is_file() {
+                project = Glossary::load(&path).unwrap_or_else(|_| Glossary::new("项目术语库"));
+            }
+            project_path = Some(path.display().to_string());
+        }
+        Ok(serde_json::json!({
+            "global": global,
+            "project": project,
+            "global_path": global_path.display().to_string(),
+            "project_path": project_path,
+        }))
+    })
+    .await
+}
+
+/// 保存某一份术语库。scope = global | project。
+#[command]
+async fn glossary_save(
+    app: tauri::AppHandle,
+    scope: String,
+    glossary: Value,
+    project_file: Option<String>,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let mut g: Glossary =
+            serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
+        g.sort();
+        let path = match scope.as_str() {
+            "global" => glossary::global_path(&dir),
+            "project" => {
+                let pf = project_file
+                    .as_ref()
+                    .ok_or_else(|| "项目术语库需要先保存项目（Ctrl+S）".to_string())?;
+                glossary::project_path(Path::new(pf))
+            }
+            other => return Err(format!("未知的作用域: {other}")),
+        };
+        g.save(&path).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "path": path.display().to_string(), "terms": g.terms.len() }))
+    })
+    .await
+}
+
+/// 选一个术语库文件（导入 / 导出共用）。
+#[command]
+async fn glossary_pick(save: bool, default_name: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dialog = rfd::FileDialog::new()
+            .set_title(if save { "导出术语库" } else { "导入术语库" })
+            .add_filter("术语库", &["json", "csv"]);
+        if save {
+            dialog.set_file_name(default_name).save_file()
+        } else {
+            dialog.pick_file()
+        }
+        .map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// 读一个术语库文件：按扩展名分派 JSON / CSV。
+#[command]
+async fn glossary_read(path: String, scope: String) -> Result<Value, String> {
+    blocking(move || {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("读取 {path} 失败: {e}"))?;
+        let is_csv = path.to_ascii_lowercase().ends_with(".csv");
+        let st = if scope == "project" { Scope::Project } else { Scope::Global };
+        if is_csv {
+            let mut g = Glossary::new("导入");
+            let n = g.import_csv(&text, st);
+            Ok(serde_json::json!({ "terms": g.terms, "count": n, "format": "csv" }))
+        } else {
+            let g = Glossary::from_json(&text).map_err(|e| format!("{e:#}"))?;
+            let n = g.terms.len();
+            Ok(serde_json::json!({ "terms": g.terms, "count": n, "format": "json" }))
+        }
+    })
+    .await
+}
+
+/// 写一个术语库文件：按扩展名分派 JSON / CSV。
+#[command]
+async fn glossary_write(path: String, glossary: Value) -> Result<Value, String> {
+    blocking(move || {
+        let mut g: Glossary =
+            serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
+        g.sort();
+        let body = if path.to_ascii_lowercase().ends_with(".csv") {
+            g.export_csv()
+        } else {
+            g.to_json().map_err(|e| format!("{e:#}"))?
+        };
+        if let Some(parent) = Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(&path, body).map_err(|e| format!("写出 {path} 失败: {e}"))?;
+        Ok(serde_json::json!({ "path": path, "terms": g.terms.len() }))
+    })
+    .await
+}
+
+#[command]
+async fn mt_config_get(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let cfg = MtConfig::load(&dir);
+        serde_json::to_value(cfg).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+#[command]
+async fn mt_config_set(app: tauri::AppHandle, config: Value) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let cfg: MtConfig =
+            serde_json::from_value(config).map_err(|e| format!("机翻配置不对: {e}"))?;
+        cfg.save(&dir).map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(cfg).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 机翻一条（只返回参考，绝不写进键里）。
+#[command]
+async fn mt_translate(
+    app: tauri::AppHandle,
+    text: String,
+    project_file: Option<String>,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let pair = load_glossary_pair(&dir, project_file.as_deref());
+        let cfg = MtConfig::load(&dir);
+        let mut engine = MtEngine::new(cfg, &dir);
+        let s = engine.translate(&text, &pair).map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(s).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 机翻一批（按需触发，不自动跑）。
+#[command]
+async fn mt_translate_many(
+    app: tauri::AppHandle,
+    texts: Vec<String>,
+    project_file: Option<String>,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let pair = load_glossary_pair(&dir, project_file.as_deref());
+        let cfg = MtConfig::load(&dir);
+        let mut engine = MtEngine::new(cfg, &dir);
+        let mut out = Vec::new();
+        for t in &texts {
+            match engine.translate(t, &pair) {
+                Ok(s) => out.push(serde_json::json!({ "ok": true, "suggestion": s })),
+                Err(e) => out.push(serde_json::json!({ "ok": false, "error": format!("{e:#}") })),
+            }
+        }
+        Ok(serde_json::json!({ "results": out }))
+    })
+    .await
+}
+
+#[command]
+async fn mt_clear_cache(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let cfg = MtConfig::load(&dir);
+        let mut engine = MtEngine::new(cfg, &dir);
+        let n = engine.cache_len();
+        engine.clear_cache();
+        Ok(serde_json::json!({ "cleared": n }))
+    })
+    .await
+}
+
+fn load_glossary_pair(dir: &Path, project_file: Option<&str>) -> glossary::GlossaryPair {
+    let mut pair = glossary::GlossaryPair::default();
+    let gp = glossary::global_path(dir);
+    if gp.is_file() {
+        if let Ok(g) = Glossary::load(&gp) {
+            pair.global = g;
+        }
+    }
+    if let Some(pf) = project_file {
+        let pp = glossary::project_path(Path::new(pf));
+        if pp.is_file() {
+            if let Ok(g) = Glossary::load(&pp) {
+                pair.project = g;
+            }
+        }
+    }
+    pair
+}
+
+/// 保证 SC2Diff 就位（首次调用即静默安装）。
+#[command]
+async fn vcs_tool(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    let bundled = app.path().resource_dir().ok();
+    blocking(move || {
+        let status = vcs::ensure(&dir, bundled.as_deref());
+        serde_json::to_value(status).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_reinstall(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    let bundled = app.path().resource_dir().ok();
+    blocking(move || {
+        let _ = std::fs::remove_file(vcs::installed_path(&dir));
+        let status = vcs::ensure(&dir, bundled.as_deref());
+        serde_json::to_value(status).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+fn repo_of(project_file: &str, document: &str) -> PathBuf {
+    vcs::repo_dir_for(Path::new(project_file), Path::new(document))
+}
+
+#[command]
+async fn vcs_repo_path(project_file: String, document: String) -> String {
+    repo_of(&project_file, &document).display().to_string()
+}
+
+#[command]
+async fn vcs_status(app: tauri::AppHandle, project_file: String, document: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    let bundled = app.path().resource_dir().ok();
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let tool = vcs::ensure(&dir, bundled.as_deref());
+        let st = if tool.installed {
+            vcs::status(&dir, &repo).map_err(|e| format!("{e:#}"))?
+        } else {
+            vcs::status(&dir, &repo).unwrap_or(vcs::RepoStatus {
+                is_repo: false,
+                branch: String::new(),
+                has_commits: false,
+                changes: Vec::new(),
+                staged: 0,
+                dirty: 0,
+                untracked: 0,
+                raw: String::new(),
+            })
+        };
+        Ok(serde_json::json!({
+            "repo": repo.display().to_string(),
+            "status": st,
+            "tool": tool,
+        }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_init(app: tauri::AppHandle, project_file: String, document: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let out = vcs::init(&dir, &repo, Some(Path::new(&document))).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "output": out }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_commit(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+    message: String,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let added = vcs::add_all(&dir, &repo).map_err(|e| format!("{e:#}"))?;
+        let committed = vcs::commit(&dir, &repo, &message).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "staged": added, "commit": committed }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_log(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+    limit: usize,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let commits = vcs::log(&dir, &repo, limit).map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(commits).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_diff(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+    from: Option<String>,
+    to: Option<String>,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let text = vcs::diff(&dir, &repo, from.as_deref(), to.as_deref())
+            .map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "text": text }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_refs(app: tauri::AppHandle, project_file: String, document: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let branches = vcs::branches(&dir, &repo).unwrap_or_default();
+        let tags = vcs::tags(&dir, &repo).unwrap_or_default();
+        Ok(serde_json::json!({ "branches": branches, "tags": tags }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_ref_action(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+    action: String,
+    value: String,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let args: Vec<String> = match action.as_str() {
+            "branch" => vec!["branch".into(), value.clone()],
+            "tag" => vec!["tag".into(), value.clone()],
+            "checkout" => vec!["checkout".into(), value.clone()],
+            "switch" => vec!["switch".into(), value.clone()],
+            other => return Err(format!("未知操作: {other}")),
+        };
+        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let out = vcs::run_checked(&dir, Some(&repo), &refs).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "output": out.combined(), "command": out.command }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_pack(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+    out: String,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let report = vcs::pack(&dir, &repo, Path::new(&out)).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "output": report, "path": out }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_unpack(
+    app: tauri::AppHandle,
+    project_file: String,
+    document: String,
+) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let out = vcs::unpack(&dir, &repo, Path::new(&document)).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "output": out }))
+    })
+    .await
+}
+
+#[command]
+async fn vcs_pick_pack(default_name: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_title("从版本仓库导出文档")
+            .set_file_name(default_name)
+            .add_filter("星际争霸 II 文档", &["SC2Map", "SC2Mod"])
+            .save_file()
+            .map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+#[command]
+async fn vcs_reveal(project_file: String, document: String) -> Result<(), String> {
+    blocking(move || {
+        let repo = repo_of(&project_file, &document);
+        let target = if repo.is_dir() { repo } else { PathBuf::from(&project_file) };
+        std::process::Command::new("explorer")
+            .arg(target)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("打开资源管理器失败: {e}"))
+    })
+    .await
+}
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -458,6 +902,30 @@ pub fn run() {
             reveal,
             default_output_name,
             default_json_name,
+            glossary_load,
+            glossary_save,
+            glossary_pick,
+            glossary_read,
+            glossary_write,
+            mt_config_get,
+            mt_config_set,
+            mt_translate,
+            mt_translate_many,
+            mt_clear_cache,
+            vcs_tool,
+            vcs_reinstall,
+            vcs_repo_path,
+            vcs_status,
+            vcs_init,
+            vcs_commit,
+            vcs_log,
+            vcs_diff,
+            vcs_refs,
+            vcs_ref_action,
+            vcs_pack,
+            vcs_pick_pack,
+            vcs_unpack,
+            vcs_reveal,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

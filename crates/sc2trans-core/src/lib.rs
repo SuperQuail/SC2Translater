@@ -18,17 +18,23 @@
 //! ## 模块
 //!
 //! * [`project`] —— 项目模型（一组文档 + 语言对 + 最近项目）
+//! * [`glossary`] —— 专有名词库（全局 / 项目两个作用域，检索与导入导出）
+//! * [`mt`]       —— 机翻参考（离线术语拼装 / 任意 OpenAI 兼容接口，带缓存）
+//! * [`vcs`]      —— 内置 SC2Diff 的静默安装与 git 形状的版本管理
 //! * [`locales`] —— locale 常量与归档内组件命名规则
 //! * [`strings`] —— 本地化字符串表的解析 / 序列化（BOM、CRLF、\`/// 原文\` 全部保真）
 //! * [`model`]   —— JSON 结构（schema = sc2trans.keys.v1）
 //! * [`ops`]     —— info / extract / audit / apply / seed / verify
 
+pub mod glossary;
 pub mod locales;
+pub mod mt;
 pub mod model;
 pub mod project;
 pub mod ops;
 pub mod strings;
 pub mod timeutil;
+pub mod vcs;
 
 /// 工具标识，写进导出 JSON 的 tool 字段。
 pub const TOOL_ID: &str = concat!("sc2trans ", env!("CARGO_PKG_VERSION"));

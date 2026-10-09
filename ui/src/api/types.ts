@@ -173,6 +173,111 @@ export interface RecentProjects {
   items: RecentEntry[];
 }
 
+// --------------------------------------------------------------------------- //
+// 专有名词库 / 机翻 / 版本管理
+// --------------------------------------------------------------------------- //
+
+export type TermScope = "global" | "project";
+
+export interface Term {
+  id: string;
+  source: string;
+  target: string;
+  note?: string;
+  domain?: string;
+  case_sensitive: boolean;
+  scope: TermScope;
+  updated_at?: string;
+}
+
+export interface Glossary {
+  format: number;
+  name: string;
+  terms: Term[];
+  updated_at?: string;
+}
+
+export interface GlossaryBundle {
+  global: Glossary;
+  project: Glossary;
+  global_path: string;
+  project_path?: string | null;
+}
+
+export type MtProvider = "offline" | "openai";
+
+export interface MtConfig {
+  provider: MtProvider;
+  base_url: string;
+  api_key: string;
+  model: string;
+  target_language: string;
+  timeout_secs: number;
+}
+
+export interface MtSuggestion {
+  text: string;
+  provider: string;
+  terms: Term[];
+  note: string;
+  cached: boolean;
+}
+
+export interface MtResult {
+  ok: boolean;
+  suggestion?: MtSuggestion;
+  error?: string;
+}
+
+export type InstallSource = "installed" | "bundled" | "dev_path" | "missing";
+
+export interface ToolStatus {
+  id: string;
+  name: string;
+  installed: boolean;
+  version?: string | null;
+  path?: string | null;
+  source: InstallSource;
+  size_bytes: number;
+  message?: string | null;
+}
+
+export interface VcsChange {
+  index: string;
+  worktree: string;
+  name: string;
+}
+
+export interface VcsStatus {
+  is_repo: boolean;
+  branch: string;
+  has_commits: boolean;
+  changes: VcsChange[];
+  staged: number;
+  dirty: number;
+  untracked: number;
+  raw: string;
+}
+
+export interface VcsCommit {
+  sha: string;
+  short: string;
+  author: string;
+  date: string;
+  message: string;
+}
+
+export interface VcsStatusBundle {
+  repo: string;
+  status: VcsStatus;
+  tool: ToolStatus;
+}
+
+export interface VcsRefs {
+  branches: string[];
+  tags: string[];
+}
+
 export interface AppInfo {
   name: string;
   version: string;

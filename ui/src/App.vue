@@ -17,18 +17,33 @@ import ExplorerPane from "./components/ExplorerPane.vue";
 import FileTabs from "./components/FileTabs.vue";
 import FillDialog from "./components/FillDialog.vue";
 import FilterPane from "./components/FilterPane.vue";
+import GlossaryPane from "./components/GlossaryPane.vue";
 import LocalePane from "./components/LocalePane.vue";
+import MtSettingsDialog from "./components/MtSettingsDialog.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
+import SourceControlPane from "./components/SourceControlPane.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import WelcomePane from "./components/WelcomePane.vue";
 import WorkspacePane from "./components/WorkspacePane.vue";
 import { useContextMenu } from "./composables/useContextMenu";
+import { useGlossary } from "./composables/useGlossary";
+import { useMt } from "./composables/useMt";
 import { useProject } from "./composables/useProject";
+import { useVcs } from "./composables/useVcs";
 
 const project = useProject();
 const s = project.state;
 const menu = useContextMenu();
+
+// 三块新功能的共享状态：术语库 / 机翻参考 / 版本管理。
+const projectFile = () => s.projectPath.value;
+const activeDocument = () => s.archive.value;
+const glossary = useGlossary(projectFile);
+const mt = useMt(projectFile);
+const vcs = useVcs(projectFile, activeDocument);
+const glossaryPane = ref<InstanceType<typeof GlossaryPane> | null>(null);
+const mtSettingsOpen = ref(false);
 
 const info = ref<AppInfo | null>(null);
 const pane = ref<InstanceType<typeof WorkspacePane> | null>(null);
@@ -103,18 +118,47 @@ onMounted(async () => {
   loadPrefs();
   info.value = await api.appInfo();
   await project.refreshRecents();
+  await Promise.all([glossary.refresh(), mt.loadConfig()]);
+  await vcs.ensureTool();
+
+  // 切文件 / 打开项目后，术语库与仓库状态都要跟着走。
+  // 注意监视的是 doc（每次载入都是新对象）而不是 archive 路径 ——
+  // 在同一个项目里切换文件时路径有可能没变，只盯路径会漏掉刷新。
+  watch(
+    () => s.doc.value,
+    async (doc) => {
+      if (!doc) return;
+      void glossary.refresh();
+      await vcs.refresh();
+    },
+  );
+  watch(
+    () => s.projectPath.value,
+    () => {
+      void glossary.refresh();
+      void vcs.refresh();
+    },
+  );
 
   // 浏览器调试用的深链：?demo=1 进工作区、&project=1 开示例项目、&view=kv|json、&fill=1、&help=1
   if (!isTauri) {
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view");
     if (view === "json" || view === "kv" || view === "table") initialView.value = view;
+    const pane = params.get("pane");
+    if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
+      activity.value = pane;
+    }
     if (params.has("help")) helpOpen.value = true;
     if (params.has("demo")) {
       await project.openPath(DEMO_ARCHIVE);
       if (params.has("project")) await project.openProject("D:/示例/斯托科夫战役.sc2transproj");
     }
     if (params.has("fill")) fillOpen.value = true;
+    if (params.has("mt")) {
+      // 演示：自动对当前条跑一次机翻参考，便于截图与自测
+      window.setTimeout(() => void mt.translate(project.selectedEntry.value?.source), 600);
+    }
     if (params.has("overwrite")) overwriteOpen.value = true;
   }
 
@@ -131,6 +175,20 @@ function inTextField(target: EventTarget | null): boolean {
   if (!el) return false;
   const tag = el.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+
+/** 批量机翻当前筛选结果（只生成参考，不写进键）。 */
+async function translateFiltered() {
+  const texts = project.filtered.value
+    .filter((e) => !(e.target ?? "").trim() && e.source)
+    .slice(0, 50)
+    .map((e) => e.source as string);
+  if (!texts.length) {
+    project.log("没有需要机翻的空译文（或当前筛选结果为空）");
+    return;
+  }
+  const map = await mt.translateMany(texts);
+  project.log("已生成 " + map.size + " 条机翻参考；在详情面板里逐条「用作译文」才会写进键");
 }
 
 /** 一键全覆盖：用原文覆盖所有语言的所有键。破坏性，所以先确认。 */
@@ -165,6 +223,11 @@ function onKeydown(event: KeyboardEvent) {
   }
 
   if (mod && event.shiftKey) {
+    if (key === "m") {
+      event.preventDefault();
+      void translateFiltered();
+      return;
+    }
     if (key === "s") {
       event.preventDefault();
       void project.saveProject(true);
@@ -197,6 +260,19 @@ function onKeydown(event: KeyboardEvent) {
 
   if (mod) {
     switch (key) {
+      case "m": {
+        event.preventDefault();
+        void mt.translate(project.selectedEntry.value?.source);
+        return;
+      }
+      case "g": {
+        event.preventDefault();
+        activity.value = "glossary";
+        prefs.value.left = true;
+        savePrefs();
+        requestAnimationFrame(() => glossaryPane.value?.focusSearch());
+        return;
+      }
       case "n":
         event.preventDefault();
         project.newProject();
@@ -219,7 +295,12 @@ function onKeydown(event: KeyboardEvent) {
         return;
       case "f":
         event.preventDefault();
-        pane.value?.focusSearch();
+        // Ctrl+F 按当前面板路由：术语库面板打开时搜术语，否则搜键表
+        if (activity.value === "glossary" && prefs.value.left) {
+          glossaryPane.value?.focusSearch();
+        } else {
+          pane.value?.focusSearch();
+        }
         return;
       case "b":
         event.preventDefault();
@@ -293,7 +374,11 @@ function onKeydown(event: KeyboardEvent) {
 
     <div class="body">
       <template v-if="s.doc.value">
-        <ActivityBar v-model="activity" :left-open="prefs.left" />
+        <ActivityBar
+          v-model="activity"
+          :left-open="prefs.left"
+          :badges="{ scm: vcs.changeCount.value }"
+        />
 
         <!-- 嵌套两个官方 split-layout：外层分侧栏，内层分详情栏。 -->
         <!-- @ts-expect-error vscode-split-layout 是自定义元素 -->
@@ -307,7 +392,14 @@ function onKeydown(event: KeyboardEvent) {
           <div slot="start" v-show="prefs.left" class="pane">
             <ExplorerPane v-if="activity === 'explorer'" :project="project" :menu="menu" />
             <FilterPane v-else-if="activity === 'filters'" :project="project" :menu="menu" />
-            <LocalePane v-else :project="project" :menu="menu" />
+            <LocalePane v-else-if="activity === 'locales'" :project="project" :menu="menu" />
+            <GlossaryPane v-else-if="activity === 'glossary'" ref="glossaryPane" :glossary="glossary" :menu="menu" />
+            <SourceControlPane
+              v-else
+              :vcs="vcs"
+              :menu="menu"
+              :document="s.archive.value"
+            />
           </div>
 
           <div slot="end" class="pane">
@@ -324,7 +416,12 @@ function onKeydown(event: KeyboardEvent) {
                 <WorkspacePane ref="pane" :project="project" :initial-view="initialView" :menu="menu" />
               </div>
               <div slot="end" v-show="prefs.right" class="pane">
-                <DetailPanel :project="project" />
+                <DetailPanel
+                  :project="project"
+                  :mt="mt"
+                  :glossary="glossary"
+                  @settings="mtSettingsOpen = true"
+                />
               </div>
             </vscode-split-layout>
           </div>
@@ -336,6 +433,7 @@ function onKeydown(event: KeyboardEvent) {
     <ContextMenu :menu="menu" />
     <FillDialog v-if="fillOpen" :project="project" @close="fillOpen = false" />
     <ShortcutsHelp v-if="helpOpen" @close="helpOpen = false" />
+    <MtSettingsDialog v-if="mtSettingsOpen" :mt="mt" @close="mtSettingsOpen = false" />
     <ConfirmDialog
       v-if="overwriteOpen"
       title="一键全覆盖"
