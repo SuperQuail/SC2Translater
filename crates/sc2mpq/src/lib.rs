@@ -25,7 +25,7 @@ pub mod compress;
 pub mod crypto;
 pub mod tables;
 
-pub use archive::{Archive, BuildInfo, BuildOptions, Document, Layout, VerifyReport};
+pub use archive::{Archive, BuildInfo, BuildOptions, Document, Layout, VerifyReport, build_document};
 pub use compress::{best_compress, decompress_chunk};
 pub use crypto::{
     HASH_FILE_KEY, HASH_NAME_A, HASH_NAME_B, HASH_TABLE_OFFSET, hash_string, jenkins_name_hash,

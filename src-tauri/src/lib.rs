@@ -131,6 +131,67 @@ async fn extract(
     .await
 }
 
+/// 载入全部翻译键（表格数据源）。不落盘，直接把文档结构返回给前端。
+#[command]
+async fn load_keys(
+    archive: String,
+    source: String,
+    target: String,
+    all_locales: bool,
+) -> Result<Value, String> {
+    blocking(move || {
+        let doc = ops::extract(Path::new(&archive), &source, &target, None, all_locales)
+            .map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(&doc).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 把内存里的文档导出成 JSON 文件。
+#[command]
+async fn export_document(doc: Value, out: String) -> Result<Value, String> {
+    blocking(move || {
+        let text = serde_json::to_string_pretty(&doc).map_err(|e| format!("{e:#}"))?;
+        std::fs::write(&out, format!("{text}\n")).map_err(|e| format!("写出 {out} 失败: {e}"))?;
+        Ok(serde_json::json!({ "path": out, "bytes": text.len() + 1 }))
+    })
+    .await
+}
+
+/// 读入一份翻译 JSON（导入外部译文用）。
+#[command]
+async fn import_document(path: String) -> Result<Value, String> {
+    blocking(move || {
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("读取 {path} 失败: {e}"))?;
+        let value: Value = serde_json::from_str(&text).map_err(|e| format!("解析 JSON 失败: {e}"))?;
+        Ok(value)
+    })
+    .await
+}
+
+/// 把内存里的文档写回归档（GUI 的「写回地图」）。
+#[command]
+async fn apply_document(
+    archive: String,
+    doc: Value,
+    out: String,
+    with_original: bool,
+    sort_keys: bool,
+) -> Result<Value, String> {
+    blocking(move || {
+        let opts = ApplyOptions {
+            out: Some(PathBuf::from(&out)),
+            with_original,
+            sort: sort_keys,
+            ..Default::default()
+        };
+        let result = ops::apply(Path::new(&archive), &doc, &opts).map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(&result).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
 /// 把翻译 JSON 写回归档。
 #[command]
 #[allow(clippy::too_many_arguments)]
@@ -238,6 +299,10 @@ pub fn run() {
             inspect,
             audit,
             extract,
+            load_keys,
+            export_document,
+            import_document,
+            apply_document,
             apply,
             seed,
             verify,

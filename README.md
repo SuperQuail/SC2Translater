@@ -85,17 +85,34 @@ stdout 就是一个完整 JSON 对象，进度与告警全部走 stderr，退出
 
 ### 3.2 GUI（Tauri 2 + Vue 3）
 
+![工作区](docs/design/gui-workspace.png)
+
+界面是三栏工作面（左：概览与过滤 / 中：键表 / 右：当前条目详情），
+不是一串向导按钮 —— 因为汉化是**长时间反复过的活**，要能一眼看到还剩多少、随时跳过去改。
+
+| 能力 | 说明 |
+| --- | --- |
+| 键表 | 窗口化渲染（上万条也不卡）、行内直接改译文、状态实时更新 |
+| 搜索与过滤 | 按键 / 原文 / 译文搜索；按状态（待翻译、缺失、未翻译、已翻译）与字符串表过滤，每项都带计数 |
+| 批量操作 | 全选当前结果、`原文填入空译文`、清空译文；作用范围可选「当前筛选结果 / 全部条目」 |
+| 详情面板 | 完整键、来源组件、整段原文、**内联标记清单**（`<n/>`、`%token%` 必须整体保留） |
+| 导入 / 导出 | 导出 JSON 交给翻译者；把翻译好的 JSON 导回来按 (字符串表, 键) 合并 |
+| 一键兜底 | 用原文把目标语言补满，先消除键路径 |
+| 密度与键盘 | 紧凑 / 标准 / 舒适三档行高；↑↓ 移动、Ctrl+F 搜索、Ctrl+S 导出、Ctrl+Enter 写回 |
+| 拖放 | 把 `.SC2Map` / `.SC2Mod` 直接拖进窗口 |
+
 ```powershell
-# 开发（会同时起 Vite 与桌面壳）
-cargo tauri dev            # 需要 cargo-tauri；或分别跑 pnpm -C ui dev
+# 开发（浏览器里调 UI，自动进入演示模式）
+pnpm -C ui install
+pnpm -C ui dev              # http://localhost:5184/ ，加 ?demo=1 直接进工作区
 
 # 打包
 pnpm -C ui build            # 生成 ui/dist
 cargo build --release -p sc2trans-gui --features custom-protocol
 ```
 
-界面是一条直线流程：**选地图 -> 看诊断 -> 导出 / 回填 / 兜底 -> 自检**。
-在浏览器里跑 `pnpm -C ui dev` 会自动进入演示模式（不需要 Rust 后端也能调 UI）。
+> ⚠️ `--features custom-protocol` 不能省：不带它的话 release 版也会去连 devUrl，
+> 在没有 dev server 的机器上就是一片空白窗口（已实测）。
 
 ### 3.3 Python 调研原型
 

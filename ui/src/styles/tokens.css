@@ -1,28 +1,126 @@
-/* 设计令牌：颜色、间距、字体、圆角。组件里只用变量，不写死色值。 */
+/* 设计令牌。
+ *
+ * 色阶直接采用 Radix Colors 的 dark 系列（12 步语义色阶），并按 Radix 的用法模型映射：
+ *   1-2 应用/面板底色   3-5 组件底色（含 hover/active）  6-8 边框（含 hover/focus ring）
+ *   9-10 实心色（按钮） 11-12 文本（11 低对比、12 高对比）
+ * 这样对比度是有依据的，不靠肉眼调。
+ */
+
 :root {
-  --bg: #0f1420;
-  --bg-raised: #161d2c;
-  --bg-inset: #0b101a;
-  --border: #24314a;
-  --border-strong: #33456a;
+  /* ---- 中性色（slate dark） ---- */
+  --slate-1: #111113;
+  --slate-2: #18191b;
+  --slate-3: #212225;
+  --slate-4: #272a2d;
+  --slate-5: #2e3135;
+  --slate-6: #363a3f;
+  --slate-7: #43484e;
+  --slate-8: #5a6169;
+  --slate-9: #696e77;
+  --slate-10: #777b84;
+  --slate-11: #b0b4ba;
+  --slate-12: #edeef0;
 
-  --text: #e7edf7;
-  --text-dim: #9fb0c9;
-  --text-faint: #6b7d99;
+  /* ---- 强调色（blue dark） ---- */
+  --blue-3: #0d2847;
+  --blue-4: #003362;
+  --blue-5: #004074;
+  --blue-6: #104d87;
+  --blue-7: #205d9e;
+  --blue-8: #2870bd;
+  --blue-9: #0090ff;
+  --blue-10: #3b9eff;
+  --blue-11: #70b8ff;
 
-  --brand: #4d8ce0;
-  --brand-strong: #3a76c4;
-  --ok: #3aa675;
-  --warn: #d8a13a;
-  --err: #d2564b;
-  --info: #4d8ce0;
+  /* ---- 状态色 ---- */
+  --green-9: #30a46c;
+  --green-11: #3dd68c;
+  --amber-9: #ffc53d;
+  --amber-11: #ffca16;
+  --red-9: #e5484d;
+  --red-11: #ff9592;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --gap: 12px;
-  --gap-lg: 20px;
-  --pad: 14px;
+  /* ---- 语义映射：底色 ---- */
+  --bg-app: var(--slate-1);
+  --bg-panel: var(--slate-2);
+  --bg-raised: var(--slate-3);
+  --bg-hover: var(--slate-4);
+  --bg-active: var(--slate-5);
+  --bg-inset: #0c0d0e;
+  --bg-selected: var(--blue-4);
 
-  --font: "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, sans-serif;
-  --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+  /* ---- 语义映射：边框 ---- */
+  --border-subtle: var(--slate-6);
+  --border: var(--slate-7);
+  --border-strong: var(--slate-8);
+  --ring: var(--blue-8);
+
+  /* ---- 语义映射：文本 ---- */
+  --text: var(--slate-12);
+  --text-muted: var(--slate-11);
+  --text-faint: var(--slate-9);
+  --text-on-solid: #ffffff;
+
+  /* ---- 语义映射：状态 ---- */
+  --accent: var(--blue-9);
+  --accent-hover: var(--blue-10);
+  --accent-text: var(--blue-11);
+  --ok: var(--green-9);
+  --ok-text: var(--green-11);
+  --warn: var(--amber-9);
+  --warn-text: var(--amber-11);
+  --err: var(--red-9);
+  --err-text: var(--red-11);
+
+  /* ---- 间距（4px 基准） ---- */
+  --s1: 2px;
+  --s2: 4px;
+  --s3: 6px;
+  --s4: 8px;
+  --s5: 12px;
+  --s6: 16px;
+  --s7: 20px;
+  --s8: 24px;
+  --s9: 32px;
+
+  /* ---- 圆角 ---- */
+  --r1: 3px;
+  --r2: 5px;
+  --r3: 8px;
+  --r4: 12px;
+
+  /* ---- 字号 / 行高 ---- */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+
+  /* ---- 行高（表格密度） ---- */
+  --row-compact: 30px;
+  --row-standard: 36px;
+  --row-comfortable: 44px;
+
+  /* ---- 布局 ---- */
+  --h-titlebar: 52px;
+  --h-statusbar: 34px;
+  --w-side: 244px;
+  --w-detail: 336px;
+
+  /* ---- 字体 ---- */
+  --font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", Menlo, monospace;
+
+  /* ---- 阴影 ---- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+
+  /* ---- 动效 ---- */
+  --t-fast: 100ms ease;
+  --t-base: 160ms ease;
+
+  color-scheme: dark;
 }

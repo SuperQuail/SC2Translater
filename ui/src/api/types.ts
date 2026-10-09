@@ -1,5 +1,5 @@
 // 与 Rust 侧 (sc2trans-core) 的 JSON 结构一一对应。
-// 权威定义在 crates/sc2trans-core/src/model.rs 与 ops.rs，改那边要同步改这里。
+// 权威定义在 crates/sc2trans-core/src/model.rs 与 ops.rs；改那边要同步改这里。
 
 export type Severity = "ok" | "info" | "warning";
 
@@ -18,12 +18,15 @@ export interface ArchiveInfo {
   sha256: string;
 }
 
+/** 单条翻译的状态。 */
+export type EntryStatus = "missing" | "identical" | "translated" | "extra" | "no-source" | string;
+
 export interface Entry {
   key: string;
   file: string;
-  source?: string;
-  target?: string;
-  status: string;
+  source?: string | null;
+  target?: string | null;
+  status: EntryStatus;
   origin?: string[];
 }
 
@@ -62,7 +65,10 @@ export interface AuditReport {
   source_locale: string;
   source_keys: number;
   locales: AuditRow[];
-  by_file: Record<string, { player_facing: boolean; source_keys: number; locales: Array<{ locale: string; present: number; expected: number; coverage: number }> }>;
+  by_file: Record<
+    string,
+    { player_facing: boolean; source_keys: number; locales: Array<{ locale: string; present: number; expected: number; coverage: number }> }
+  >;
   locales_absent: string[];
   diagnosis: Diagnosis;
 }
