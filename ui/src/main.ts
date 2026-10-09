@@ -10,6 +10,9 @@ import "@vscode-elements/elements/dist/bundled.js";
 import "./styles/vscode-theme.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
+// JetBrains 皮肤：只在 <html data-skin="jb"> 时生效，把 --vscode-* 换一套值。
+import "./styles/jb-skin.css";
+import "./styles/jb-tokens.css";
 
 import App from "./App.vue";
 

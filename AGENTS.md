@@ -174,7 +174,41 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 
 ## 8. 前端改动的走法（硬规矩）
 
-**凡是会改变界面的改动，先出图，后写码。** 顺序不能反：
+**凡是会改变界面的改动，先出图，后写码。** 顺序不能反。
+
+### 8.0 渲染必须来自真应用，不是套壳模型
+
+**这条是硬要求**：给用户看的预览图，必须是**当前这套真实前端**跑出来的**整窗**截图，
+看得出上线后就是什么样子。不许拿一个独立 HTML 模仿个大概 ——
+那种图骗得了眼睛骗不了集成：字体不是同一套、间距不是同一套、
+旁边还有一半界面（标题栏、活动栏、状态栏）根本不知道长什么样。
+
+**做法**：给要预览的状态加一个深链参数，用真应用截图。已经有这些：
+
+| 参数 | 效果 |
+| --- | --- |
+| `?demo=1` | 进工作区（演示数据，不需要真归档） |
+| `?project=1` | 打开示例项目（多文件、标签条、统计） |
+| `?recent=1` | 只加载「最近的项目」，不打开文件 —— 用来截开始页 |
+| `&start=1\|2\|3` | 开始页三版排布 |
+| `&skin=jb` | 整套皮肤切成 JetBrains（Ring UI 令牌） |
+| `&pane=…` | 指定左栏面板 |
+| `&view=table\|kv\|json` | 指定中间视图 |
+| `&fill=1` / `&overwrite=1` / `&help=1` / `&mt=1` | 弹对应面板 |
+
+**新增界面就顺手加一个深链参数**，否则那个状态截不出来，也就没法给用户看。
+
+### 8.0.1 皮肤是可切换的，不是二选一重写
+
+整套视觉有两种皮肤：默认 `vscode`（控件与令牌都来自 VS Code 官方），
+和 `jb`（控件还是同一批，令牌换成 JetBrains 官方 Ring UI 的取值）。
+切皮肤只做一件事：给 `<html>` 加 `data-skin="jb"`。
+
+为什么能这么便宜：vscode-elements 的组件内部读的就是 `--vscode-*` 变量，
+所以换掉那一层变量的值，按钮/输入框/下拉/标签页/树**整体**就换了样子，组件代码一行不动。
+要加第三种皮肤，就再加一个 `[data-skin="xxx"]` 的令牌文件，不要动组件。
+
+### 8.0.2 出图流程
 
 1. **先渲染预览**。用无头 Edge 截图，现成的深链直接可用：
 
@@ -183,15 +217,6 @@ $edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 # 开发服务器：pnpm -C ui dev（只监听 IPv6，必须用 localhost，别用 127.0.0.1）
 & $edge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1600,900 --virtual-time-budget=12000 --screenshot=out.png 'http://localhost:5184/?demo=1&project=1&pane=scm'
 ```
-
-   深链参数（App.vue 的 onMounted 里那个 if (!isTauri) 块）：
-
-   * `?demo=1` —— 进工作区（演示数据，不需要真归档）
-   * `&project=1` —— 打开示例项目（多文件、标签条、统计）
-   * `&pane=explorer|filters|locales|glossary|scm` —— 指定左栏面板
-   * `&view=table|kv|json` —— 指定中间视图；`&fill=1` / `&overwrite=1` / `&help=1` / `&mt=1` 弹对应面板
-
-   **加了新界面就顺手加一个深链参数**，否则那个状态截不出来，也就没法给用户看。
 
 2. **有设计自由度就给至少 3 版**：3 张图并排，每版一句话讲清取舍（不是「A/B/C 好看吗」）。
    没有自由度（只是修个边距之类）就给 1 版，并说明「没有可选项，只有这一种」。

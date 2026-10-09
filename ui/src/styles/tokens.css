@@ -121,6 +121,20 @@
   --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.5);
 
+  /* ---- JetBrains 视觉变量 ----
+   * 开始页（JB 式）写一次，两种皮肤下都能融进去：
+   * VS Code 皮肤下它们指向本应用的令牌，JB 皮肤下换成 Ring UI 的真实色值。 */
+  --jb-bg: var(--bg-editor);
+  --jb-text: var(--text);
+  --jb-secondary: var(--text-muted);
+  --jb-hint: var(--text-faint);
+  --jb-line: var(--border-subtle);
+  --jb-hover: var(--list-hover);
+  --jb-selected: var(--list-active-bg);
+  --jb-main: var(--accent);
+  --jb-main-hover: var(--accent-hover);
+  --jb-radius: var(--r1);
+
   --t-fast: 80ms linear;
   --t-base: 120ms ease-out;
 

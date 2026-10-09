@@ -146,6 +146,53 @@ export const api = {
 // 展示助手
 // --------------------------------------------------------------------------- //
 
+/**
+ * 工程方块的文字：照 JetBrains 的规则取前两个「词」的首字母。
+ *
+ * 规则（对着参考图里 10 个真实项目逐个对出来的）：
+ * - 按分隔符与驼峰切词，丢掉纯数字的词；
+ * - 第一个词全是字母大写（MDK / SLS）就取它前两个字符；
+ * - 否则取前两个词的首字母；
+ * - 只有一个词（中文名、SCMR 这种）就取前两个字符。
+ */
+export function projectInitials(name: string): string {
+  const cleaned = name.replace(/\.(sc2transproj|SC2Map|SC2Mod)$/i, "");
+  const parts = cleaned
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[\s_\-./\\()[\]]+/)
+    .filter((w) => w.length > 0 && !/^[0-9]+$/.test(w));
+  if (!parts.length) return cleaned.slice(0, 2).toUpperCase();
+
+  const first = parts[0];
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  if (first.length >= 2 && first === first.toUpperCase() && /[A-Z]/.test(first)) {
+    return first.slice(0, 2).toUpperCase();
+  }
+  return (first[0] + parts[1][0]).toUpperCase();
+}
+
+/** 方块底色：照 JetBrains 的做法由路径决定，同一个工程永远同色。 */
+const AVATAR_COLORS = [
+  "#3574F0",
+  "#55A76A",
+  "#E08840",
+  "#4FA3A3",
+  "#7A6FF0",
+  "#B45BC4",
+  "#C4508F",
+  "#8A63D2",
+  "#C9A227",
+  "#3D9AA8",
+];
+
+export function avatarColor(seed: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i += 1) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 0x01000193) >>> 0;
+  }
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 export function formatCoverage(coverage: number): string {
   return (coverage * 100).toFixed(1) + "%";
 }

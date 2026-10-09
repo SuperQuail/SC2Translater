@@ -1,0 +1,15 @@
+/* JetBrains 皮肤下，开始页用的那组语义变量换成 Ring UI 的真实取值。 */
+
+[data-skin="jb"] {
+  --jb-bg: #1e1f22;
+  --jb-text: #dfe1e5;
+  --jb-secondary: #9da0a8;
+  --jb-hint: #868a91;
+  --jb-line: #43454a;
+  --jb-hover: #25324d;
+  --jb-selected: #2e436e;
+  --jb-main: #3574f0;
+  --jb-main-hover: #366acf;
+  --jb-radius: 4px;
+  --font-ui: system-ui, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}

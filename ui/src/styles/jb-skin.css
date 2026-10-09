@@ -1,0 +1,119 @@
+/* JetBrains 皮肤。
+ *
+ * 做法：把我们整个应用读的 --vscode-* 令牌**换一套值**，而不是重写组件。
+ * 因为 vscode-elements 的组件内部也是读 --vscode-* 的，所以换完这一层，
+ * 按钮、输入框、下拉、标签页、树、进度条会**整体**变成 JetBrains 的样子 —— 一行组件代码都不用改。
+ *
+ * 色值取自 JetBrains 官方开源组件库 Ring UI 的暗色主题令牌：
+ *   @jetbrains/ring-ui@7.0.8/components/global/variables_dark.css
+ * 这是官方源，不是照着色号猜的。
+ *
+ * 用法：<html data-skin="jb">
+ */
+
+[data-skin="jb"] {
+  /* ---- 底色 ---- */
+  --vscode-editor-background: #1e1f22;          /* content background */
+  --vscode-sideBar-background: #2b2d30;         /* sidebar background */
+  --vscode-activityBar-background: #2b2d30;
+  --vscode-titleBar-activeBackground: #2b2d30;
+  --vscode-titleBar-inactiveBackground: #1e1f22;
+  --vscode-statusBar-background: #2b2d30;
+  --vscode-statusBar-inactiveBackground: #1e1f22;
+  --vscode-editorGroupHeader-tabsBackground: #2b2d30;
+  --vscode-editorWidget-background: #393b40;    /* popup background */
+  --vscode-menu-background: #393b40;
+  --vscode-dropdown-background: #1e1f22;
+  --vscode-dropdown-listBackground: #393b40;
+  --vscode-input-background: #1e1f22;
+  --vscode-checkbox-background: #1e1f22;
+
+  /* ---- 分隔线 ---- */
+  --vscode-panel-border: #43454a;               /* line */
+  --vscode-widget-border: #43454a;
+  --vscode-menu-border: #43454a;
+  --vscode-titleBar-border: #43454a;
+  --vscode-sideBar-border: #43454a;
+  --vscode-statusBar-border: #43454a;
+  --vscode-editorGroupHeader-tabsBorder: #43454a;
+  --vscode-editorGroup-border: #43454a;
+  --vscode-tab-border: #43454a;
+  --vscode-dropdown-border: #43454a;
+  --vscode-checkbox-border: #43454a;
+  --vscode-input-border: #43454a;               /* Ring 的输入框是描边风格 */
+  --vscode-contrastBorder: #43454a;
+
+  /* ---- 文字 ---- */
+  --vscode-foreground: #dfe1e5;                 /* text */
+  --vscode-editor-foreground: #dfe1e5;
+  --vscode-sideBar-foreground: #dfe1e5;
+  --vscode-descriptionForeground: #9da0a8;      /* secondary */
+  --vscode-disabledForeground: #6f737a;         /* disabled */
+  --vscode-icon-foreground: #868a91;            /* icon */
+  --vscode-input-foreground: #dfe1e5;
+  --vscode-input-placeholderForeground: #6f737a;
+  --vscode-dropdown-foreground: #dfe1e5;
+
+  /* ---- 主色与状态 ---- */
+  --vscode-focusBorder: #3574f0;                /* ring-main-color */
+  --vscode-textLink-foreground: #99bbff;        /* link */
+  --vscode-textLink-activeForeground: #6b9bfa;
+  --vscode-errorForeground: #e37774;            /* error */
+  --vscode-editorError-foreground: #e37774;
+  --vscode-editorWarning-foreground: #f2c55c;   /* warning */
+  --vscode-editorInfo-foreground: #99bbff;
+  --vscode-testing-iconPassed: #73bd79;         /* success */
+  --vscode-editor-selectionBackground: #2e436e;
+
+  /* ---- 按钮 ---- */
+  --vscode-button-background: #3574f0;
+  --vscode-button-hoverBackground: #366acf;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-border: #3574f0;
+  --vscode-button-secondaryBackground: #393b40;  /* Ring 的次要按钮是实底，不是描边 */
+  --vscode-button-secondaryHoverBackground: #43454a;
+  --vscode-button-secondaryForeground: #dfe1e5;
+
+  /* ---- 列表 ---- */
+  --vscode-list-hoverBackground: #25324d;        /* hover background */
+  --vscode-list-activeSelectionBackground: #2e436e; /* selected background */
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #393b40;
+  --vscode-list-inactiveSelectionForeground: #dfe1e5;
+  --vscode-list-focusOutline: #3574f0;
+  --vscode-list-highlightForeground: #99bbff;
+
+  /* ---- 标签页 ---- */
+  --vscode-tab-activeBackground: #1e1f22;
+  --vscode-tab-activeForeground: #ffffff;
+  --vscode-tab-inactiveBackground: #2b2d30;
+  --vscode-tab-inactiveForeground: #9da0a8;
+  --vscode-tab-hoverBackground: #25324d;
+  --vscode-tab-activeBorderTop: #3574f0;
+
+  /* ---- 活动栏 ---- */
+  --vscode-activityBar-foreground: #dfe1e5;
+  --vscode-activityBar-inactiveForeground: #868a91;
+  --vscode-activityBar-activeBorder: #3574f0;    /* Ring 用主色做指示条，不是 VS Code 那种浅色 */
+
+  /* ---- 徽标 / 状态条 ---- */
+  --vscode-badge-background: #43454a;            /* tag background */
+  --vscode-badge-foreground: #dfe1e5;
+  --vscode-activityBarBadge-background: #3574f0;
+  --vscode-activityBarBadge-foreground: #ffffff;
+  --vscode-statusBarItem-remoteBackground: #3574f0;
+  --vscode-statusBarItem-remoteForeground: #ffffff;
+
+  /* ---- 滚动条：Ring 更细更淡 ---- */
+  --vscode-scrollbarSlider-background: rgba(134, 138, 145, 0.35);
+  --vscode-scrollbarSlider-hoverBackground: rgba(134, 138, 145, 0.55);
+  --vscode-scrollbarSlider-activeBackground: rgba(134, 138, 145, 0.7);
+
+  /* ---- 形状：JetBrains 比 VS Code 圆 ---- */
+  --r1: 4px;
+  --r2: 4px;
+  --r3: 8px;
+  --r4: 10px;
+  --w-activity: 44px;
+  --h-tabbar: 36px;
+}

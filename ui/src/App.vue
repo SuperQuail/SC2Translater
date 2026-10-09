@@ -56,6 +56,9 @@ const initialView = ref<"table" | "kv" | "json">("table");
 
 /** 视图偏好（栏宽、开合、活动栏、密度）—— 记在本地。 */
 const PREFS_KEY = "sc2trans.view";
+/** 皮肤：VS Code 官方控件那套，还是 JetBrains（Ring UI 令牌）那套。 */
+type Skin = "vscode" | "jb";
+
 interface ViewPrefs {
   left: boolean;
   right: boolean;
@@ -63,6 +66,9 @@ interface ViewPrefs {
   rightWidth: number;
   density: string;
   activity: Activity;
+  skin: Skin;
+  /** 开始页排布，1/2/3 对应三版方案。 */
+  startVariant: 1 | 2 | 3;
 }
 const prefs = ref<ViewPrefs>({
   left: true,
@@ -71,7 +77,14 @@ const prefs = ref<ViewPrefs>({
   rightWidth: 336,
   density: "standard",
   activity: "explorer",
+  skin: "vscode",
+  startVariant: 1,
 });
+
+/** 皮肤靠 <html data-skin> 切换；CSS 那边只换令牌，不换组件。 */
+function applySkin() {
+  document.documentElement.dataset.skin = prefs.value.skin;
+}
 
 function loadPrefs() {
   try {
@@ -82,6 +95,7 @@ function loadPrefs() {
   }
   s.density.value = (prefs.value.density as typeof s.density.value) ?? "standard";
   activity.value = prefs.value.activity ?? "explorer";
+  applySkin();
 }
 
 function savePrefs() {
@@ -145,11 +159,19 @@ onMounted(async () => {
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view");
     if (view === "json" || view === "kv" || view === "table") initialView.value = view;
+    if (params.get("skin") === "jb") {
+      prefs.value.skin = "jb";
+      applySkin();
+    }
+    const start = Number(params.get("start"));
+    if (start === 1 || start === 2 || start === 3) prefs.value.startVariant = start as 1 | 2 | 3;
     const pane = params.get("pane");
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
     }
     if (params.has("help")) helpOpen.value = true;
+    // 只加载「最近的项目」而不打开任何文件 —— 用来截开始页
+    if (params.has("recent")) await project.refreshRecents();
     if (params.has("demo")) {
       await project.openPath(DEMO_ARCHIVE);
       if (params.has("project")) await project.openProject("D:/示例/斯托科夫战役.sc2transproj");
@@ -427,7 +449,17 @@ function onKeydown(event: KeyboardEvent) {
           </div>
         </vscode-split-layout>
       </template>
-      <WelcomePane v-else :dropping="dropping" @open="project.openArchive" />
+      <WelcomePane
+      v-else
+      :variant="prefs.startVariant"
+      :recents="s.recents.value"
+      :current="null"
+      :dropping="dropping"
+      @open="project.openArchive"
+      @create="project.openArchive"
+      @pick="project.openPath"
+      @forget="project.forgetRecent"
+    />
     </div>
 
     <ContextMenu :menu="menu" />

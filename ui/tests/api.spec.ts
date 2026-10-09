@@ -3,10 +3,36 @@
 
 import { describe, expect, it } from "vitest";
 
-import { baseName, formatBytes, formatCoverage, markupTokens, statusLabel } from "../src/api";
+import { avatarColor, baseName, formatBytes, formatCoverage, markupTokens, projectInitials, statusLabel } from "../src/api";
 import { DEMO_ARCHIVE, call, isTauri } from "../src/api/bridge";
 import { entryId } from "../src/composables/useProject";
 import type { Entry, TranslationDocument } from "../src/api/types";
+
+describe("工程方块", () => {
+  // 这些用例是照着参考图里 JetBrains 真实显示的首字母逐个对的
+  it.each([
+    ["NeoMinePlayer", "NM"],
+    ["CampusBites", "CB"],
+    ["AutoJs6-master", "AJ"],
+    ["SLS_Quail", "SL"],
+    ["MiyaModMavenVersion", "MM"],
+    ["Miya_Craft", "MC"],
+    ["TestCode_01", "TC"],
+    ["MDK-1.21.1-NeoGradle-main", "MD"],
+    ["ExampleMod-master (1)", "EM"],
+    ["PythonInstallJava", "PI"],
+    ["SCMR", "SC"],
+    ["斯托科夫战役", "斯托"],
+    ["斯托科夫战役.sc2transproj", "斯托"],
+  ])("%s -> %s", (name, want) => {
+    expect(projectInitials(name)).toBe(want);
+  });
+
+  it("同一个路径永远同一个颜色，不同路径大概率不同", () => {
+    expect(avatarColor("D:/a/B")).toBe(avatarColor("D:/a/B"));
+    expect(avatarColor("D:/a/B")).toMatch(/^#[0-9A-F]{6}$/i);
+  });
+});
 
 describe("格式化助手", () => {
   it("覆盖率按一位小数显示", () => {

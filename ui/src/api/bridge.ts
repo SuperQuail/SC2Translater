@@ -180,10 +180,19 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
     case "pick_archives":
       return [DEMO_ARCHIVE, DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), DEMO_ARCHIVE.replace("Stukov2", "ZergX03")];
     case "recent_projects":
+      // 演示数据：规模照参考图（十来条、长短路径混合、有一条失效）
       return {
         items: [
-          { path: "D:/示例/斯托科夫战役.sc2transproj", name: "斯托科夫战役", opened_at: "2026-10-09T00:00:00Z", files: 3 },
-          { path: "D:/示例/星际枢纽汉化.sc2transproj", name: "星际枢纽汉化", opened_at: "2026-10-08T00:00:00Z", files: 12 },
+          { path: "D:/Code/SC2/斯托科夫战役", name: "斯托科夫战役", opened_at: "2026-10-09T10:00:00Z", files: 3 },
+          { path: "D:/Code/SC2/星际枢纽汉化", name: "星际枢纽汉化", opened_at: "2026-10-09T09:00:00Z", files: 12 },
+          { path: "D:/Code/SC2/SCMR 复刻战役", name: "SCMR 复刻战役", opened_at: "2026-10-08T18:00:00Z", files: 46 },
+          { path: "D:/Code/SC2/CoopCommanderPatch", name: "CoopCommanderPatch", opened_at: "2026-10-08T12:00:00Z", files: 8 },
+          { path: "D:/Game/BLZ/StarCraft II/Maps/Campaign/swarm", name: "swarm", opened_at: "2026-10-07T20:00:00Z", files: 27 },
+          { path: "D:/Code/SC2/Miya_Craft", name: "Miya_Craft", opened_at: "2026-10-06T15:00:00Z", files: 5 },
+          { path: "D:/Code/SC2/TestCode_01", name: "TestCode_01", opened_at: "2026-10-05T11:00:00Z", files: 2 },
+          { path: "D:/Code/SC2/MDK-1.21.1-NeoGradle-main", name: "MDK-1.21.1-NeoGradle-main", opened_at: "2026-10-04T09:00:00Z", files: 0 },
+          { path: "D:/Code/SC2/ExampleMod-master (1)", name: "ExampleMod-master (1)", opened_at: "2026-10-03T09:00:00Z", files: 0 },
+          { path: "E:/外接盘/PythonInstallJava", name: "PythonInstallJava", opened_at: "2026-10-02T09:00:00Z", files: -1 },
         ],
       };
     case "forget_project":
