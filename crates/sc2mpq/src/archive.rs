@@ -256,7 +256,7 @@ impl Archive {
         let want_a = hash_string(name, crate::HASH_NAME_A);
         let want_b = hash_string(name, crate::HASH_NAME_B);
         for _ in 0..self.hash_count {
-            let Some(e) = self.hash_table.get(idx) else { return None };
+            let e = self.hash_table.get(idx)?;
             if e.is_free() {
                 return None;
             }

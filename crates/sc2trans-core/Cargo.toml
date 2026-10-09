@@ -1,0 +1,15 @@
+[package]
+name = "sc2trans-core"
+description = "SC2Translater 的领域核心：翻译键模型、提取与回填（不含任何 GUI 依赖）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sc2mpq.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true

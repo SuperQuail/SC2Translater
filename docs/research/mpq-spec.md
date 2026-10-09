@@ -2,6 +2,7 @@
 目标读者：用 Rust 重写这层的工程师。
 证据全部来自实测代码与实盘样本，每条结论都带 `文件:行` 或函数名。
 标注 **[推断]** / **[未验证]** 的地方是推理而非实测，不要当成硬约束照抄。
+
 ## 0. 证据基线与复现命令
 
 | 代号 | 路径 | 说明 |
@@ -410,8 +411,7 @@ P 的 `names()` **只**读 `(listfile)`（P:560-564），`block_name(i)` 先在 
 - **[建议]** 新实现先把 listfile 读进来建立 `block_index -> name` 反查表（R 的做法，R(archive):118-125），并**保留未命名块的可读通道**（按块索引读原始字节）——这是 P 目前缺的能力。
 
 ## 8. Rust API 设计建议（`sc2mpq` crate）
-右列 = Python 对应函数。
-每张表/每个结构体都要能 `parse` / `to_bytes` 双向走通：HET/BET 的逐字节重生成就靠它。
+每张表/每个结构体都要能 `parse`/`to_bytes` 双向走通（HET/BET 的逐字节重生成就靠它）；下表右列 = Python 对应函数。
 
 ### 8.1 模块划分
 ```
@@ -419,21 +419,9 @@ P 的 `names()` **只**读 `(listfile)`（P:560-564），`block_name(i)` 先在 
               archive.rs(Archive 只读 + Document 读写) | compress.rs | layout.rs | build.rs
 ```
 
+### 8.2 公开 API 草案
+
 ```rust
-// ---- 错误 ----
-
-### 8.3 支撑能力检查
-
-| 需要的能力 | 用哪个 API |
-| --- | --- |
-| 打开 | `Archive::open` / `Document::open` |
-| 枚举 | `Archive::names` / `component_names` / `block_name` |
-| 读单个组件 | `Archive::read` / `read_block` |
-| 全量解包 | `Archive::extract_all` |
-| 从组件字典从零构建 | `Document::new` + `set`×N + `save`（`hash_count: None` 自动取 2 的幂） |
-| 增量替换若干组件 | `Document::open` → `set`/`remove` → `save`（`Layout` 快照自动沿用） |
-| verify | `Archive::verify(true)`，断言 `raw_chunk_size == 0` |
-
 pub enum MpqError { NotAnArchive, HashTableFull, HetTableFull, BadCompressionMask(u8),
     TooShort { need: usize, got: usize }, MissingComponent(String), Io(std::io::Error) }
 pub type Result<T> = std::result::Result<T, MpqError>;
@@ -488,17 +476,22 @@ fn hash_string(text: &str, hash_type: u32) -> u32;                      // P: ha
 fn jenkins_name_hash(name: &str, bits: u32) -> u64;                     // P: jenkins_name_hash (200)
 ```
 
+### 8.3 支撑能力检查
+
+| 需要的能力 | 用哪个 API |
+| --- | --- |
+| 打开 | `Archive::open` / `Document::open` |
+| 枚举 | `Archive::names` / `component_names` / `block_name` |
+| 读单个组件 | `Archive::read` / `read_block` |
+| 全量解包 | `Archive::extract_all` |
+| 从组件字典从零构建 | `Document::new` + `set`×N + `save`（`hash_count: None` 自动取 2 的幂） |
+| 增量替换若干组件 | `Document::open` → `set`/`remove` → `save`（`Layout` 快照自动沿用） |
+| verify | `Archive::verify(true)`，断言 `raw_chunk_size == 0` |
+
 ### 8.4 必须写进单测的不变量
 ① `het.to_bytes()`/`bet.to_bytes()` 与磁盘原文逐字节相等（F:116-117）；② `raw_chunk_size == 0` 且 6 个 MD5 有效（P:992-1010）；
 ③ 所有名字 `find_block(n) == lookup_index(n)`（F:108-114）；④ `bet.entry(i)` 的 `(pos,size,cmp)` 与 block table 逐条相等（P:677-685）；
 ⑤ `cmp==size` 的块读取后长度 == `file_size` 且首字节未被吞（§5.2）。
-
-| --- | --- | --- |
-| 1 | `het.to_bytes()` / `bet.to_bytes()` 与磁盘原文逐字节相等 | F:116-117 |
-| 2 | `raw_chunk_size == 0`；6 个 MD5 全部有效（0xC0 最后算） | P:992-1010 |
-| 3 | 所有名字 `find_block(n) == lookup_index(n)` | F:108-114 |
-| 4 | `bet.entry(i)` 的 `(pos,size,cmp)` 与 block table 逐条相等 | P:677-685 |
-| 5 | `cmp==size` 的块读取后长度 == `file_size` 且首字节未被吞 | §5.2 |
 
 ## 9. 坑清单（照抄 StormLib / 规范就会踩）
 
@@ -561,8 +554,7 @@ fn jenkins_name_hash(name: &str, bits: u32) -> u64;                     // P: je
 
 | 差异 | P | R | 影响 |
 | --- | --- | --- | --- |
-| HET 探针循环 | 先判空闲（P:317） | `candidate_index` 先判命中（tables.rs:105） | 死代码，但**不要**拿它当参考 |
-| `verify` 深度 | mismatch 列表 + md5/crc 统计 + roundtrip_exact | 5 个 bool | 定位问题能力弱很多 |
+| HET 探针循环 / `verify` 深度 | 先判空闲（P:317）；mismatch 列表 + md5/crc 统计 + roundtrip_exact | `candidate_index` 先判命中（tables.rs:105）；只有 5 个 bool | 前者是死代码，**不要**当参考；后者定位问题能力弱很多 |
 | `Document` 编辑 | `set`/`remove` + 快照回填 | 无 | 增量替换必须自己实现 |
 | 未命名块 | `block_name` 兜底簿记项名 | 同 | 两者都 skip（P:628-630） |
 | `unknown08` 默认 | 参数默认 `0x10`，但 `Document.save` 回填原件值 | 同 | **从零构建（不读原件）会写出 `0x10`，与所有实测样本不同** ← 风险 |
@@ -580,8 +572,7 @@ fn jenkins_name_hash(name: &str, bits: u32) -> u64;                     // P: je
 | 5 样本 `dwRawChunkSize` | 全部 16384 | 确认 F:355-361 |
 | 5 样本 BET `unknown08` | 全部 **7888** | 确认 F:55-63，且是常量而非个例 |
 | HET / BET 参数 | paiur01 HET `199/67/89/64/7/0/7/78`、BET `1115/67/7888/67/…/469/2`；HTXL HET `522/184/245/64/8/0/8/245`、BET `2936/184/7888/68/…/1288/2` | 同 F:51-57 |
-| `SECTOR_CRC` 偏移表 | n+2 个 dword；`offsets[0] = 4*(n+2)`；`offsets[n] = offsets[n+1] = cmp_size` | 确认 F:98-99，并补出 `offsets[0]` 的精确含义 |
-| `offsets[n+1]` ≠ 末扇区 CRC32 | `DocumentHeader` 末扇区 CRC `0xadaa8c3f`，尾项 `7547` | **新否定**：它不是校验值 |
+| `SECTOR_CRC` 偏移表 | n+2 个 dword;`offsets[0] = 4*(n+2)`;`offsets[n] = offsets[n+1] = cmp_size`;尾项**不是**末扇区 CRC32（`DocumentHeader` 末扇区 CRC `0xadaa8c3f`，尾项 `7547`） | 确认 F:98-99 并补出精确含义;**新否定**尾项语义 |
 | `COMPRESS` 且 `cmp==size` 的块数 | paiur01 = **16 个**（含 `(attributes)`） | 量化 F:85-87 |
 | `(listfile)` CRC32 正确 / MD5 全零 | `0xc115ed63` = `zlib.crc32(listfile)` | 确认 F:74-78 |
 
@@ -591,8 +582,7 @@ fn jenkins_name_hash(name: &str, bits: u32) -> u64;                     // P: je
 - [ ] 所有名字 `find_block(n) == lookup_index(n)`，含 HTXL 的 3 个高 8 位碰撞名字
 - [ ] `cmp == size` 的块首字节未被吞
 - [ ] `(listfile)` MD5 全零、`(attributes)` CRC/MD5 全零，且**按块索引**排布
-- [ ] 写侧 `rawChunkSize == 0`；从原件读入时不继承 16384
-- [ ] `unknown08` 沿用原件（7888）
+- [ ] 写侧 `rawChunkSize == 0`；从原件读入时不继承 16384；`unknown08` 沿用原件（7888）
 - [ ] 多兆字节组件走 SINGLE_UNIT；仅在原件分扇区时才分扇区
 - [ ] bz2 level 9 输出与暴雪产物逐字节相同（Triggers 145291 / Objects 63577 / MapScript.galaxy 23046）
 - [ ] StormLib `SFileOpenArchive` + 全量抽取 67/67

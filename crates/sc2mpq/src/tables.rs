@@ -331,7 +331,7 @@ impl BetTable {
             t.flags.push(f(p));
         }
         off += 4 * t.flag_count as usize;
-        let file_bytes = ((t.table_entry_size as usize * t.entry_count as usize) + 7) / 8;
+        let file_bytes = (t.table_entry_size as usize * t.entry_count as usize).div_ceil(8);
         let fend = (off + file_bytes).min(body.len());
         t.file_bits = body[off..fend].to_vec();
         off = fend;
@@ -484,7 +484,7 @@ pub fn build_het(names: &[String], name_hash_bit_size: u32) -> Result<HetTable> 
         total_count = entry_count;
     }
     let index_size_total = necessary_bit_count(entry_count as u64).max(1);
-    let index_table_size = ((total_count as u64 * index_size_total as u64) + 7) / 8;
+    let index_table_size = (total_count as u64 * index_size_total as u64).div_ceil(8);
     let mut name_hashes = vec![0u8; total_count as usize];
     let mut index_bits = vec![0xFFu8; index_table_size as usize];
 
@@ -553,8 +553,8 @@ pub fn build_bet(
     let table_entry_size = bi_unknown;
 
     let bit_total_nh2 = name_hash_bit_size - 8;
-    let name_hash_array_size = ((bit_total_nh2 as u64 * entry_count as u64) + 7) / 8;
-    let entry_bytes = ((table_entry_size as u64 * entry_count as u64) + 7) / 8;
+    let name_hash_array_size = (bit_total_nh2 as u64 * entry_count as u64).div_ceil(8);
+    let entry_bytes = (table_entry_size as u64 * entry_count as u64).div_ceil(8);
     let table_size =
         76 + flag_array.len() as u32 * 4 + entry_bytes as u32 + name_hash_array_size as u32;
 

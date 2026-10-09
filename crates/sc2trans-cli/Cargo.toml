@@ -1,0 +1,18 @@
+[package]
+name = "sc2trans-cli"
+description = "SC2Translater 的命令行工具（面向 agent，--json 输出机器可读结果）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "sc2trans"
+path = "src/main.rs"
+
+[dependencies]
+sc2trans-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
