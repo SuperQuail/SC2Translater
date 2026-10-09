@@ -19,7 +19,7 @@ import FillDialog from "./components/FillDialog.vue";
 import FilterPane from "./components/FilterPane.vue";
 import GlossaryPane from "./components/GlossaryPane.vue";
 import LocalePane from "./components/LocalePane.vue";
-import MtSettingsDialog from "./components/MtSettingsDialog.vue";
+import SettingsDialog from "./components/SettingsDialog.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import SourceControlPane from "./components/SourceControlPane.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -27,6 +27,9 @@ import TitleBar from "./components/TitleBar.vue";
 import ProjectPane from "./components/ProjectPane.vue";
 import WelcomeWindow from "./components/WelcomeWindow.vue";
 import WorkspacePane from "./components/WorkspacePane.vue";
+import { convertFileSrc } from "@tauri-apps/api/core";
+
+import type { SettingsDraft } from "./composables/settings";
 import { useContextMenu } from "./composables/useContextMenu";
 import { useGlossary } from "./composables/useGlossary";
 import { useMt } from "./composables/useMt";
@@ -44,7 +47,7 @@ const glossary = useGlossary(projectFile);
 const mt = useMt(projectFile);
 const vcs = useVcs(projectFile, activeDocument);
 const glossaryPane = ref<InstanceType<typeof GlossaryPane> | null>(null);
-const mtSettingsOpen = ref(false);
+
 
 const info = ref<AppInfo | null>(null);
 const pane = ref<InstanceType<typeof WorkspacePane> | null>(null);
@@ -68,6 +71,10 @@ interface ViewPrefs {
   density: string;
   activity: Activity;
   skin: Skin;
+  /** 默认打开的标签视图。 */
+  tabView: "table" | "kv" | "json";
+  /** 背景图像。 */
+  background: { path: string; opacity: number; placement: string; projectOnly: boolean };
 }
 const prefs = ref<ViewPrefs>({
   left: true,
@@ -77,7 +84,58 @@ const prefs = ref<ViewPrefs>({
   density: "standard",
   activity: "explorer",
   skin: "vscode",
+  tabView: "table",
+  background: { path: "", opacity: 15, placement: "center", projectOnly: false },
 });
+
+/** 设置对话框。 */
+const settingsOpen = ref(false);
+const settingsPage = ref("appearance");
+const openBackgroundDialog = ref(false);
+const settingsDraft = computed<SettingsDraft>(() => ({
+  skin: prefs.value.skin,
+  density: s.density.value,
+  left: prefs.value.left,
+  right: prefs.value.right,
+  leftWidth: prefs.value.leftWidth,
+  rightWidth: prefs.value.rightWidth,
+  tabView: prefs.value.tabView,
+  background: { ...prefs.value.background },
+}));
+
+/** 背景图像路径 -> 能喂给 CSS 的 URL。 */
+function imageUrl(path: string): string {
+  if (!path) return "";
+  // 浏览器调试时路径就是普通 URL；桌面壳里要转成 asset 协议
+  if (!isTauri) return path;
+  try {
+    return convertFileSrc(path);
+  } catch {
+    return path;
+  }
+}
+
+const bgStyle = computed(() => {
+  const b = prefs.value.background;
+  if (!b?.path) return null;
+  const q = String.fromCharCode(34);
+  return {
+    backgroundImage: "url(" + q + imageUrl(b.path) + q + ")",
+    backgroundRepeat: b.placement === "tile" ? "repeat" : "no-repeat",
+    backgroundSize: b.placement === "stretch" ? "100% 100%" : b.placement === "fit" ? "contain" : "auto",
+    backgroundPosition: b.placement === "tile" ? "0 0" : "center",
+    opacity: String(Math.min(100, Math.max(0, b.opacity)) / 100),
+  };
+});
+
+/** 设置页交回来的改动：偏好、密度、默认视图、皮肤、背景。 */
+function applySettings(d: SettingsDraft) {
+  prefs.value = { ...prefs.value, ...d } as ViewPrefs;
+  s.density.value = d.density as typeof s.density.value;
+  initialView.value = d.tabView;
+  applySkin();
+  savePrefs();
+}
 
 /** 小窗（没打开项目）与主窗（打开了）两套尺寸，照 JetBrains 换窗的做法。 */
 const WELCOME_SIZE = { w: 1100, h: 760 };
@@ -127,6 +185,7 @@ function loadPrefs() {
   }
   s.density.value = (prefs.value.density as typeof s.density.value) ?? "standard";
   activity.value = prefs.value.activity ?? "explorer";
+  initialView.value = prefs.value.tabView ?? "table";
   applySkin();
 }
 
@@ -205,6 +264,20 @@ onMounted(async () => {
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
     }
+    // 背景图像（截图用）：?bg=<url>&bgop=40&bgplace=center
+    if (params.has("bg")) {
+      prefs.value.background = {
+        path: params.get("bg") ?? "",
+        opacity: Number(params.get("bgop") ?? 15) || 15,
+        placement: params.get("bgplace") ?? "center",
+        projectOnly: false,
+      };
+    }
+    if (params.has("settings")) {
+      settingsPage.value = params.get("settings") || "appearance";
+      settingsOpen.value = true;
+    }
+    if (params.has("bgdlg")) openBackgroundDialog.value = true;
     if (params.has("help")) helpOpen.value = true;
     // 只加载「最近的项目」而不打开任何文件 —— 用来截开始页
     if (params.has("recent")) await project.refreshRecents();
@@ -324,6 +397,12 @@ function onKeydown(event: KeyboardEvent) {
 
   if (mod) {
     switch (key) {
+      case ",": {
+        event.preventDefault();
+        settingsPage.value = "appearance";
+        settingsOpen.value = true;
+        return;
+      }
       case "m": {
         event.preventDefault();
         void mt.translate(project.selectedEntry.value?.source);
@@ -420,7 +499,10 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'has-bg': Boolean(bgStyle) }">
+    <!-- 背景图像：垫在所有面板底下，靠面板自身透明露出来 -->
+    <div v-if="bgStyle" class="bg-layer" :style="bgStyle"></div>
+
     <!-- 打开文件时是主界面；什么都没打开时，整窗换成 JetBrains 式的小窗 -->
     <template v-if="s.doc.value">
     <TitleBar
@@ -436,6 +518,7 @@ function onKeydown(event: KeyboardEvent) {
       @fill="fillOpen = true"
       @overwrite-all="overwriteOpen = true"
       @help="helpOpen = true"
+      @settings="settingsPage = 'appearance'; settingsOpen = true"
       @toggle-left="prefs.left = !prefs.left; savePrefs()"
       @toggle-right="prefs.right = !prefs.right; savePrefs()"
     />
@@ -501,7 +584,7 @@ function onKeydown(event: KeyboardEvent) {
                   :project="project"
                   :mt="mt"
                   :glossary="glossary"
-                  @settings="mtSettingsOpen = true"
+                  @settings="settingsPage = 'mt'; settingsOpen = true"
                 />
               </div>
             </vscode-split-layout>
@@ -513,7 +596,20 @@ function onKeydown(event: KeyboardEvent) {
     <ContextMenu :menu="menu" />
     <FillDialog v-if="fillOpen" :project="project" @close="fillOpen = false" />
     <ShortcutsHelp v-if="helpOpen" @close="helpOpen = false" />
-    <MtSettingsDialog v-if="mtSettingsOpen" :mt="mt" @close="mtSettingsOpen = false" />
+    <SettingsDialog
+      v-if="settingsOpen"
+      :draft="settingsDraft"
+      :info="info"
+      :mt="mt"
+      :vcs="vcs"
+      :glossary="glossary"
+      :data-dir="info?.tool"
+      :initial-page="settingsPage"
+      :open-background="openBackgroundDialog"
+      @close="settingsOpen = false"
+      @apply="applySettings"
+      @help="settingsOpen = false; helpOpen = true"
+    />
     <ConfirmDialog
       v-if="overwriteOpen"
       title="一键全覆盖"
@@ -536,7 +632,7 @@ function onKeydown(event: KeyboardEvent) {
       @create="project.openArchive"
       @pick="project.openPath"
       @forget="project.forgetRecent"
-      @settings="mtSettingsOpen = true"
+      @settings="settingsPage = 'appearance'; settingsOpen = true"
       @help="helpOpen = true"
       @minimize="winAction('minimize')"
       @maximize="winAction('toggleMaximize')"
@@ -546,7 +642,30 @@ function onKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.app { height: 100%; display: flex; flex-direction: column; }
+.app { height: 100%; display: flex; flex-direction: column; position: relative; }
+
+/* 背景图像层：在底下铺开，不吃鼠标事件 */
+.bg-layer { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+/* 有背景图时，编辑器区域的底色让开，图才露得出来；侧栏/标题栏仍是不透明的，
+   和 IntelliJ 一样只垫「编辑器与工具」。
+   三样都要改：我们的两个别名，以及 vscode-elements 内部直接读的 --vscode-editor-background
+   —— 只改别名的话，标签页面板那层还是实底，图透不过来。 */
+.app.has-bg {
+  --bg-editor: transparent;
+  --bg-app: transparent;
+  --vscode-editor-background: transparent;
+  /* vscode-tabs 的 shadow DOM 里画的是这个令牌，不覆盖的话标签页面板仍是实底 */
+  --vscode-panel-background: transparent;
+}
+.app.has-bg .pane,
+.app.has-bg .split,
+.app.has-bg vscode-split-layout,
+.app.has-bg vscode-tabs,
+.app.has-bg vscode-tab-panel { background: transparent; }
+
+/* 背景层在最底下，其余兄弟节点抬到它上面 */
+.app > *:not(.bg-layer) { position: relative; z-index: 1; }
 .body { flex: 1; min-height: 0; display: flex; }
 
 /* split-layout 自己画分隔条（1px，hover 变强调色），我们只管让它铺满。 */

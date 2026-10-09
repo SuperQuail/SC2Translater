@@ -632,6 +632,21 @@ fn load_glossary_pair(dir: &Path, project_file: Option<&str>) -> glossary::Gloss
     pair
 }
 
+/// 选一张背景图片。
+#[command]
+async fn pick_image() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_title("选择背景图像")
+            .add_filter("图片", &["png", "jpg", "jpeg", "webp", "gif", "bmp"])
+            .pick_file()
+            .map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// 保证 SC2Diff 就位（首次调用即静默安装）。
 #[command]
 async fn vcs_tool(app: tauri::AppHandle) -> Result<Value, String> {
@@ -905,6 +920,7 @@ pub fn run() {
             vcs_pick_pack,
             vcs_unpack,
             vcs_reveal,
+            pick_image,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

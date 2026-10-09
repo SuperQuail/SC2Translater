@@ -177,6 +177,8 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
       return { name: "SC2Translater", version: "0.1.0", tool: "sc2trans 0.1.0 (demo)", schema: "sc2trans.keys.v1" } satisfies AppInfo;
     case "pick_archive":
       return DEMO_ARCHIVE;
+    case "pick_image":
+      return "D:/Pic/miku/1.png";
     case "pick_archives":
       return [DEMO_ARCHIVE, DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), DEMO_ARCHIVE.replace("Stukov2", "ZergX03")];
     case "recent_projects":

@@ -155,6 +155,8 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
     UTF-8 脚本里会被 PS 按 ANSI 解读，直接把脚本解析崩掉。
 16. **前端改动没有用户点头不许落**。凡会改变界面的改动，先出预览图拿到明确同意再写进代码；
     有设计自由度的至少给 3 版方案。细则见第 8 节。
+17. **改前端文件前先停 dev server**。Vite 攥着 `ui/src/**` 不放，`edit`/`write` 会报
+    `ReplaceFileW EIO (Win32 32)`。顺序永远是：停 dev -> 改 -> 构建 -> 再起 dev 截图。
 
 ---
 

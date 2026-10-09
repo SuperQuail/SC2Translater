@@ -137,6 +137,9 @@ export const api = {
   vcsPickPack: (defaultName: string) => call<string | null>("vcs_pick_pack", { defaultName }),
   vcsUnpack: (projectFile: string, document: string) =>
     call<{ output: string }>("vcs_unpack", { projectFile, document }),
+  /** 选一张背景图片（原生对话框）。 */
+  pickImage: () => call<string | null>("pick_image"),
+
   vcsReveal: (projectFile: string, document: string) =>
     call<void>("vcs_reveal", { projectFile, document }),
   reveal: (path: string) => call<void>("reveal", { path }),

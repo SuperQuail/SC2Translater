@@ -23,6 +23,7 @@ const emit = defineEmits<{
   (e: "fill"): void;
   (e: "overwrite-all"): void;
   (e: "help"): void;
+  (e: "settings"): void;
   (e: "toggle-left"): void;
   (e: "toggle-right"): void;
   (e: "minimize"): void;
@@ -124,11 +125,13 @@ function onMore(event: MouseEvent) {
     [
       { id: "verify", label: "容器自检", hint: "F5" },
       { id: "reveal", label: "打开产物所在目录", separator: true },
-      { id: "help", label: "快捷键与右键菜单", hint: "F1", separator: true },
+      { id: "settings", label: "设置…", hint: "Ctrl+,", separator: true },
+      { id: "help", label: "快捷键与右键菜单", hint: "F1" },
     ],
     (id) => {
       if (id === "verify") void props.project.runVerify();
       else if (id === "reveal") void props.project.revealOutput();
+      else if (id === "settings") emit("settings");
       else if (id === "help") emit("help");
     },
   );
