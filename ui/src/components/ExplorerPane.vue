@@ -6,12 +6,48 @@
 import { computed } from "vue";
 
 import { baseName, formatBytes } from "../api";
+import type { FileEntry, FileKind } from "../api/types";
 import type { ContextMenuApi } from "../composables/useContextMenu";
 import type { Project } from "../composables/useProject";
 import Icon from "./Icon.vue";
 
-const props = defineProps<{ project: Project; menu: ContextMenuApi }>();
+const props = defineProps<{
+  project: Project;
+  menu: ContextMenuApi;
+  /** 扫出来的工程文件（类 VS Code 的文件夹视图）。 */
+  tree?: FileEntry[];
+  /** 当前打开的文件。 */
+  activePath?: string;
+}>();
+const emit = defineEmits<{ (e: "open", path: string): void }>();
 const s = props.project.state;
+
+/** 按目录分组的文件树。 */
+const groups = computed(() => {
+  const map = new Map<string, FileEntry[]>();
+  for (const f of props.tree ?? []) {
+    const i = f.path.lastIndexOf("/");
+    const dir = i < 0 ? "" : f.path.slice(0, i);
+    const list = map.get(dir) ?? [];
+    list.push(f);
+    map.set(dir, list);
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+});
+
+/** 文件类型 -> codicon。 */
+function kindIcon(kind: FileKind): string {
+  if (kind === "sc2") return "map";
+  if (kind === "image") return "file-media";
+  if (kind === "binary") return "file-binary";
+  return "file";
+}
+
+/** 树里的名字：取最后一段。 */
+function leafName(p: string): string {
+  const i = p.lastIndexOf("/");
+  return i < 0 ? p : p.slice(i + 1);
+}
 
 const currentInfo = computed(() => {
   const i = s.info.value;
@@ -128,6 +164,25 @@ function projectMenu(event: MouseEvent) {
       <button class="add" @click="props.project.addFiles"><Icon name="plus" :size="12" />添加文件</button>
     </div>
 
+    <div v-if="props.tree?.length" class="files">
+      <h3>工程文件</h3>
+      <template v-for="[dir, list] in groups" :key="dir">
+        <div v-if="dir" class="dir"><Icon name="folder" :size="13" />{{ dir }}</div>
+        <button
+          v-for="f in list"
+          :key="f.path"
+          class="fileRow"
+          :class="{ active: f.path === props.activePath, dim: f.kind === 'binary' }"
+          :title="f.path + ' · ' + formatBytes(f.size)"
+          @click="emit('open', f.path)"
+        >
+          <Icon :name="kindIcon(f.kind)" :size="13" />
+          <span class="fname">{{ leafName(f.path) }}</span>
+          <span v-if="f.linked_json" class="linked" title="已关联同名 JSON">JSON</span>
+        </button>
+      </template>
+    </div>
+
     <div v-if="currentInfo" class="current">
       <h3>当前文件</h3>
       <div class="kv"><span>大小</span><b>{{ currentInfo.size }}</b></div>
@@ -181,4 +236,29 @@ vscode-tree { display: block; width: 100%; }
 .kv b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
 .path { font-size: 10px; color: var(--text-faint); word-break: break-all; }
 .desc { font-size: 10px; opacity: 0.75; }
+
+.files { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border-subtle); padding: var(--s3) var(--s3) var(--s5); }
+.files h3 { padding: 0 var(--s2) var(--s3); }
+.dir {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 2px var(--s3); margin-top: var(--s3);
+  font-size: var(--fs-xs); color: var(--text-muted);
+}
+.fileRow {
+  display: flex; align-items: center; gap: var(--s3);
+  width: 100%; height: 22px; padding: 0 var(--s3) 0 var(--s5);
+  border: none; border-radius: var(--r1); background: transparent;
+  color: var(--text); font-size: var(--fs-sm); justify-content: flex-start;
+  /* button 默认 text-align:center，不重置的话文件名会飘到中间 */
+  text-align: left;
+  cursor: default;
+}
+.fileRow:hover { background: var(--list-hover); }
+.fileRow.active { background: var(--list-active-bg); color: var(--list-active-fg); }
+.fileRow.dim { color: var(--text-faint); }
+.fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linked {
+  flex: 0 0 auto; font-size: 9px; padding: 0 4px; border-radius: var(--r1);
+  background: var(--accent); color: #fff;
+}
 </style>

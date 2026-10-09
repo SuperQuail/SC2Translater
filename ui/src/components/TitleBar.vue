@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// 顶栏：项目 + 语言对 + 主操作。控件全部用 VS Code 官方的 <vscode-button> / <vscode-single-select>。
+// 顶栏：项目名 + 主操作 + 窗口按钮。
+// 语言对**不在这里** —— 它是每个文件的项目配置，在 SC2 工具条上改（见开发文档第 3 节）。
 
-import { computed, watch } from "vue";
+import { computed } from "vue";
 
 import { baseName, formatBytes } from "../api";
 import type { AppInfo } from "../api/types";
 import type { ContextMenuApi } from "../composables/useContextMenu";
-import { COMMON_LOCALES } from "../composables/useProject";
 import type { Project } from "../composables/useProject";
 import Icon from "./Icon.vue";
 
@@ -32,14 +32,6 @@ const emit = defineEmits<{
 }>();
 
 const s = props.project.state;
-const CUSTOM = "__custom__";
-
-const sourceChoice = computed(() =>
-  COMMON_LOCALES.some((l) => l.code === s.source.value) ? s.source.value : CUSTOM,
-);
-const targetChoice = computed(() =>
-  COMMON_LOCALES.some((l) => l.code === s.target.value) ? s.target.value : CUSTOM,
-);
 
 const archiveLabel = computed(() =>
   s.project.value.files.length
@@ -53,32 +45,6 @@ const fileMeta = computed(() => {
   const st = s.info.value;
   return st ? formatBytes(st.size) : "";
 });
-
-function readSelect(event: Event): string {
-  return String((event.target as unknown as { value: string }).value ?? "");
-}
-
-/** 改语言对时同时写回当前项目文件 —— 每个文件可以有自己的语言对。 */
-function applyLanguages(nextSource: string, nextTarget: string) {
-  const file = s.project.value.files[s.project.value.active];
-  if (file) {
-    file.source = nextSource;
-    file.target = nextTarget;
-  }
-  void props.project.changeLanguages(nextSource, nextTarget);
-}
-
-function onSourceChange(event: Event) {
-  const v = readSelect(event);
-  if (v === CUSTOM) return;
-  applyLanguages(v, s.target.value);
-}
-
-function onTargetChange(event: Event) {
-  const v = readSelect(event);
-  if (v === CUSTOM) return;
-  applyLanguages(s.source.value, v);
-}
 
 function onProjectMenu(event: MouseEvent) {
   props.menu.openMenu(
@@ -137,7 +103,6 @@ function onMore(event: MouseEvent) {
   );
 }
 
-watch([() => s.source.value, () => s.target.value], () => void 0);
 </script>
 
 <template>
@@ -157,28 +122,7 @@ watch([() => s.source.value, () => s.target.value], () => void 0);
 
     <span class="spacer"></span>
 
-    <div v-if="s.doc.value" class="langs">
-      <!-- @ts-expect-error vscode-single-select 是自定义元素 -->
-      <vscode-single-select
-        class="lang"
-        :value="sourceChoice"
-        title="原文语言"
-        @change="onSourceChange"
-      >
-        <vscode-option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</vscode-option>
-      </vscode-single-select>
-      <Icon name="chevron" :size="12" />
-      <!-- @ts-expect-error 自定义元素 -->
-      <vscode-single-select
-        class="lang"
-        :value="targetChoice"
-        title="目标语言"
-        @change="onTargetChange"
-      >
-        <vscode-option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</vscode-option>
-      </vscode-single-select>
-      <span v-if="fileMeta" class="meta">{{ fileMeta }}</span>
-    </div>
+    <span v-if="fileMeta" class="meta">{{ fileMeta }}</span>
 
     <span class="spacer"></span>
 

@@ -26,7 +26,9 @@
 //! * [`model`]   —— JSON 结构（schema = sc2trans.keys.v1）
 //! * [`ops`]     —— info / extract / audit / apply / seed / verify
 
+pub mod filekind;
 pub mod glossary;
+pub mod link;
 pub mod locales;
 pub mod mt;
 pub mod model;

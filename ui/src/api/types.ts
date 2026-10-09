@@ -278,6 +278,36 @@ export interface VcsRefs {
   tags: string[];
 }
 
+// --------------------------------------------------------------------------- //
+// 文件访问（类 VS Code）
+// --------------------------------------------------------------------------- //
+
+/** 打开一个文件时判出来的类型。 */
+export type FileKind = "sc2" | "text" | "image" | "binary";
+
+export interface FileEntry {
+  /** 相对工程根的路径。 */
+  path: string;
+  kind: FileKind;
+  size: number;
+  /** sc2 文件关联上的同名 JSON（没关联上就是 null）。 */
+  linked_json?: string | null;
+}
+
+export interface OpenFile {
+  path: string;
+  kind: FileKind;
+  size: number;
+  /** text 才有：文件内容。 */
+  text?: string;
+  /** 打不开时的原因（binary / 太大 / 解码失败）。 */
+  reason?: string;
+  /** 文本被截断了（超过上限）。 */
+  truncated?: boolean;
+  /** 能直接喂给 <img src> 的地址（桌面壳里由 asset 协议转出来）。 */
+  url?: string;
+}
+
 export interface AppInfo {
   name: string;
   version: string;

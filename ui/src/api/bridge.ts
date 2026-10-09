@@ -31,6 +31,46 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 // 演示模式：造一份够大的样本，让表格、过滤、编辑都能在浏览器里真跑一遍
 // --------------------------------------------------------------------------- //
 
+/** 演示工程目录：混着放 SC2 文档、文本、图片和打不开的二进制。 */
+const DEMO_TREE = [
+  { path: "Maps/Stukov2.SC2Map", kind: "sc2" as const, size: 902586, linked_json: "Maps/Stukov2.json" },
+  { path: "Maps/Stukov2.json", kind: "text" as const, size: 22011, linked_json: null },
+  { path: "Maps/Stukov3.SC2Map", kind: "sc2" as const, size: 1358082, linked_json: null },
+  { path: "Maps/说明.txt", kind: "text" as const, size: 812, linked_json: null },
+  { path: "Mods/SCMR.SC2Mod", kind: "sc2" as const, size: 44892160, linked_json: null },
+  { path: "Refs/封面.png", kind: "image" as const, size: 402123, linked_json: null, preview: "/demo-ref.png" },
+  { path: "Refs/字体说明.md", kind: "text" as const, size: 1204, linked_json: null },
+  { path: "GameData/UnitData.xml", kind: "text" as const, size: 55210, linked_json: null },
+  { path: "Assets/model.m3", kind: "binary" as const, size: 2201984, linked_json: null },
+  { path: "Assets/voice.ogg", kind: "binary" as const, size: 884320, linked_json: null },
+];
+
+/** 演示文本内容。 */
+const DEMO_TEXT: Record<string, string> = {
+  "Maps/说明.txt": [
+    "斯托科夫战役 汉化说明",
+    "",
+    "1. 先跑 audit 看每种语言缺多少键；",
+    "2. 用 seed 把原文补进 zhCN，至少不再显示键路径；",
+    "3. 译文写好后用 apply 写回，产物不要覆盖原件。",
+    "",
+    "注意：GameStrings.txt 里的 <n/> 是换行标记，改动时别弄丢。",
+  ].join("\n"),
+  "Maps/Stukov2.json": [
+    "{",
+    "  \"schema\": \"sc2trans.keys.v1\",",
+    "  \"source_locale\": \"enUS\",",
+    "  \"target_locale\": \"zhCN\",",
+    "  \"entries\": [",
+    "    { \"key\": \"DocInfo/Name\", \"source\": \"Stukov's Gambit\", \"target\": \"\", \"status\": \"missing\" },",
+    "    { \"key\": \"Param/Value/24A5289E\", \"source\": \"Attack\", \"target\": \"\", \"status\": \"missing\" }",
+    "  ]",
+    "}",
+  ].join("\n"),
+  "Refs/字体说明.md": "# 字体\n\n正文用思源黑体，标题用思源宋体。\n",
+  "GameData/UnitData.xml": "<Catalog>\n  <CUnit id=\"Marine\" parent=\"Marine\"/>\n</Catalog>\n",
+};
+
 /** 演示用的术语：覆盖面尽量像真的（含中英混排、简称、大小写敏感）。 */
 const DEMO_TERMS = [
   { id: "t1", source: "Infested Terran", target: "被感染的陆战队员", note: "SC2 官方译法", domain: "单位", case_sensitive: true, scope: "global" as const },
@@ -179,6 +219,28 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
       return DEMO_ARCHIVE;
     case "pick_image":
       return "D:/Pic/miku/1.png";
+    case "scan_folder":
+      return DEMO_TREE;
+    case "open_file": {
+      const path = String(args?.path ?? "");
+      const entry = DEMO_TREE.find((f) => f.path === path) ?? DEMO_TREE[0];
+      if (entry.kind === "sc2") {
+        return { path: entry.path, kind: "sc2", size: entry.size, linked_json: entry.linked_json ?? null };
+      }
+      if (entry.kind === "text") {
+        return { path: entry.path, kind: "text", size: entry.size, text: DEMO_TEXT[entry.path] ?? "# " + entry.path + "\n（演示内容）\n" };
+      }
+      if (entry.kind === "image") {
+        // 演示：给一个能直接加载的地址（真机上是 asset 协议转出来的）
+        return { path: entry.path, kind: "image", size: entry.size, url: entry.preview ?? "" };
+      }
+      return {
+        path: entry.path,
+        kind: "binary",
+        size: entry.size,
+        reason: "这个文件不是 UTF-8 文本（前 512 字节里有 NUL 字节），大概是个二进制资源。本工具不打开这类文件。",
+      };
+    }
     case "pick_archives":
       return [DEMO_ARCHIVE, DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), DEMO_ARCHIVE.replace("Stukov2", "ZergX03")];
     case "recent_projects":

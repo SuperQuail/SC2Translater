@@ -632,6 +632,93 @@ fn load_glossary_pair(dir: &Path, project_file: Option<&str>) -> glossary::Gloss
     pair
 }
 
+/// 扫工程目录，列出我们认得的文件（有深度与条目上限，不扫 node_modules 这类）。
+#[command]
+async fn scan_folder(root: String) -> Result<Value, String> {
+    blocking(move || {
+        use sc2trans_core::filekind;
+        const MAX_DEPTH: usize = 6;
+        const MAX_ENTRIES: usize = 2000;
+        const SKIP: [&str; 6] = [".sc2translater", ".git", "node_modules", "target", ".idea", "__pycache__"];
+
+        let base = PathBuf::from(&root);
+        let mut out: Vec<Value> = Vec::new();
+        let mut stack = vec![(base.clone(), 0usize)];
+        while let Some((dir, depth)) = stack.pop() {
+            if depth > MAX_DEPTH || out.len() >= MAX_ENTRIES {
+                continue;
+            }
+            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') || SKIP.contains(&name.as_str()) {
+                    continue;
+                }
+                if path.is_dir() {
+                    stack.push((path, depth + 1));
+                    continue;
+                }
+                let c = filekind::classify(&path);
+                let rel = path
+                    .strip_prefix(&base)
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| name.clone());
+                let linked = if c.kind == filekind::FileKind::Sc2 {
+                    match sc2trans_core::link::link(&path) {
+                        sc2trans_core::link::Link::Linked { path } => {
+                            Some(path.strip_prefix(&base).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default())
+                        }
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                out.push(serde_json::json!({
+                    "path": rel,
+                    "kind": c.kind,
+                    "size": c.size,
+                    "linked_json": linked,
+                }));
+            }
+        }
+        out.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+        Ok(serde_json::json!(out))
+    })
+    .await
+}
+
+/// 打开一个文件：返回类型与内容，或者拒绝的理由。
+#[command]
+async fn open_file(root: String, path: String) -> Result<Value, String> {
+    blocking(move || {
+        use sc2trans_core::filekind;
+        use sc2trans_core::link;
+        let full = PathBuf::from(&root).join(&path);
+        let c = filekind::classify(&full);
+        let mut value = serde_json::json!({ "path": path, "kind": c.kind, "size": c.size });
+        if let Some(reason) = c.reason {
+            value["reason"] = serde_json::json!(reason);
+        }
+        match c.kind {
+            filekind::FileKind::Text => {
+                let text = std::fs::read_to_string(&full).map_err(|e| format!("读取 {path} 失败: {e}"))?;
+                value["text"] = serde_json::json!(text);
+            }
+            filekind::FileKind::Sc2 => {
+                let linked = match link::link(&full) {
+                    link::Link::Linked { path } => Some(path.file_name().map(|n| n.to_string_lossy().to_string())),
+                    _ => None,
+                };
+                value["linked_json"] = serde_json::json!(linked);
+            }
+            _ => {}
+        }
+        Ok(value)
+    })
+    .await
+}
+
 /// 选一张背景图片。
 #[command]
 async fn pick_image() -> Option<String> {
@@ -921,6 +1008,8 @@ pub fn run() {
             vcs_unpack,
             vcs_reveal,
             pick_image,
+            scan_folder,
+            open_file,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

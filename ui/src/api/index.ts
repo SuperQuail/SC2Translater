@@ -1,9 +1,13 @@
 // 类型化命令封装 + 展示用格式化助手。组件只调这里，不直接碰 invoke。
 
+import { convertFileSrc } from "@tauri-apps/api/core";
+
 import { call, isTauri } from "./bridge";
 import type {
   ApplyResult,
   AppInfo,
+  FileEntry,
+  OpenFile,
   AuditReport,
   Glossary,
   GlossaryBundle,
@@ -137,6 +141,11 @@ export const api = {
   vcsPickPack: (defaultName: string) => call<string | null>("vcs_pick_pack", { defaultName }),
   vcsUnpack: (projectFile: string, document: string) =>
     call<{ output: string }>("vcs_unpack", { projectFile, document }),
+  /** 扫工程目录，列出我们认得的文件。 */
+  scanFolder: (root: string) => call<FileEntry[]>("scan_folder", { root }),
+  /** 打开一个文件：返回类型与内容，或者拒绝的理由。 */
+  openFile: (root: string, path: string) => call<OpenFile>("open_file", { root, path }),
+
   /** 选一张背景图片（原生对话框）。 */
   pickImage: () => call<string | null>("pick_image"),
 
@@ -194,6 +203,20 @@ export function avatarColor(seed: string): string {
     h = Math.imul(h ^ seed.charCodeAt(i), 0x01000193) >>> 0;
   }
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+/**
+ * 本地文件路径 -> 能喂给 <img src> 的地址。
+ * 桌面壳里走 Tauri 的 asset 协议；浏览器调试时路径本身就是可用的 URL。
+ */
+export function imageUrl(path: string): string {
+  if (!path) return "";
+  if (!isTauri) return path;
+  try {
+    return convertFileSrc(path);
+  } catch {
+    return path;
+  }
 }
 
 export function formatCoverage(coverage: number): string {

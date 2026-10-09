@@ -19,7 +19,10 @@ import FillDialog from "./components/FillDialog.vue";
 import FilterPane from "./components/FilterPane.vue";
 import GlossaryPane from "./components/GlossaryPane.vue";
 import LocalePane from "./components/LocalePane.vue";
+import ImageViewer from "./components/ImageViewer.vue";
 import SettingsDialog from "./components/SettingsDialog.vue";
+import TextViewer from "./components/TextViewer.vue";
+import UnsupportedPane from "./components/UnsupportedPane.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import SourceControlPane from "./components/SourceControlPane.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -33,6 +36,7 @@ import type { SettingsDraft } from "./composables/settings";
 import { useContextMenu } from "./composables/useContextMenu";
 import { useGlossary } from "./composables/useGlossary";
 import { useMt } from "./composables/useMt";
+import { useFiles } from "./composables/useFiles";
 import { useProject } from "./composables/useProject";
 import { useVcs } from "./composables/useVcs";
 
@@ -43,6 +47,9 @@ const menu = useContextMenu();
 // 三块新功能的共享状态：术语库 / 机翻参考 / 版本管理。
 const projectFile = () => s.projectPath.value;
 const activeDocument = () => s.archive.value;
+const files = useFiles();
+/** 翻译键视图的三种排布（见开发文档第 6 节）。 */
+const keysLayout = ref<"a" | "b" | "c">("a");
 const glossary = useGlossary(projectFile);
 const mt = useMt(projectFile);
 const vcs = useVcs(projectFile, activeDocument);
@@ -136,6 +143,9 @@ function applySettings(d: SettingsDraft) {
   applySkin();
   savePrefs();
 }
+
+/** 演示工程目录（普通文件访问用）。 */
+const DEMO_FOLDER = "D:/示例/斯托科夫战役";
 
 /** 小窗（没打开项目）与主窗（打开了）两套尺寸，照 JetBrains 换窗的做法。 */
 const WELCOME_SIZE = { w: 1100, h: 760 };
@@ -264,6 +274,14 @@ onMounted(async () => {
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
     }
+    // 打开一个普通文件：?file=<相对路径>；键视图排布：?keys=a|b|c
+    const keys = params.get("keys");
+    if (keys === "a" || keys === "b" || keys === "c") keysLayout.value = keys;
+    if (params.has("file")) {
+      await files.scan(DEMO_FOLDER);
+      await files.open(params.get("file") ?? "");
+    }
+
     // 背景图像（截图用）：?bg=<url>&bgop=40&bgplace=center
     if (params.has("bg")) {
       prefs.value.background = {
@@ -281,6 +299,8 @@ onMounted(async () => {
     if (params.has("help")) helpOpen.value = true;
     // 只加载「最近的项目」而不打开任何文件 —— 用来截开始页
     if (params.has("recent")) await project.refreshRecents();
+    // 演示工程目录（普通文件访问用）
+    if (params.has("folder") || params.has("file")) await files.scan(DEMO_FOLDER);
     if (params.has("demo")) {
       await project.openPath(DEMO_ARCHIVE);
       if (params.has("project")) await project.openProject("D:/示例/斯托科夫战役.sc2transproj");
@@ -544,7 +564,14 @@ function onKeydown(event: KeyboardEvent) {
           @pointerup="captureWidth('left', $event)"
         >
           <div slot="start" v-show="prefs.left" class="pane">
-            <ExplorerPane v-if="activity === 'explorer'" :project="project" :menu="menu" />
+            <ExplorerPane
+              v-if="activity === 'explorer'"
+              :project="project"
+              :menu="menu"
+              :tree="files.tree.value"
+              :active-path="files.active.value?.path"
+              @open="files.open"
+            />
             <FilterPane v-else-if="activity === 'filters'" :project="project" :menu="menu" />
             <LocalePane v-else-if="activity === 'locales'" :project="project" :menu="menu" />
             <GlossaryPane v-else-if="activity === 'glossary'" ref="glossaryPane" :glossary="glossary" :menu="menu" />
@@ -577,7 +604,30 @@ function onKeydown(event: KeyboardEvent) {
               @pointerup="captureWidth('right', $event)"
             >
               <div slot="start" class="pane">
-                <WorkspacePane ref="pane" :project="project" :initial-view="initialView" :menu="menu" />
+                <TextViewer
+                  v-if="files.active.value?.kind === 'text'"
+                  :file="files.active.value"
+                  :dirty="files.dirty.value"
+                  @edit="files.markEdited"
+                />
+                <ImageViewer
+                  v-else-if="files.active.value?.kind === 'image'"
+                  :file="files.active.value"
+                  :root="files.root.value"
+                />
+                <UnsupportedPane
+                  v-else-if="files.active.value?.kind === 'binary'"
+                  :file="files.active.value"
+                  @reveal="project.revealOutput"
+                />
+                <WorkspacePane
+                  v-else
+                  ref="pane"
+                  :project="project"
+                  :initial-view="initialView"
+                  :menu="menu"
+                  :keys-layout="keysLayout"
+                />
               </div>
               <div slot="end" v-show="prefs.right" class="pane">
                 <DetailPanel
