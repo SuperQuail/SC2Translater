@@ -241,6 +241,8 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
       return DEMO_TREE;
     case "pick_folder":
       return DEMO_FOLDER;
+    case "read_image_data_url":
+      return "/demo-ref.png";
     case "workspace_load":
       return {
         workspace: {

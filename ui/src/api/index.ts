@@ -155,6 +155,8 @@ export const api = {
   workspaceMigrate: (root: string, projectFile: string) =>
     call<{ workspace: unknown; outside: string[] }>("workspace_migrate", { root, projectFile }),
   workspaceScan: (root: string) => call<FileEntry[]>("workspace_scan", { root }),
+  /** 读一张图片回 data URL（不走 asset 协议）。 */
+  readImageDataUrl: (root: string, path: string) => call<string>("read_image_data_url", { root, path }),
   recentFolders: () => call<{ items: RecentEntry[] }>("recent_folders"),
   recentTouch: (root: string) => call<{ items: RecentEntry[] }>("recent_touch", { root }),
   forgetFolder: (path: string) => call<{ items: RecentEntry[] }>("forget_folder", { path }),

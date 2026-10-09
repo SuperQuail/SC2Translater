@@ -859,6 +859,50 @@ async fn open_file(root: String, path: String) -> Result<Value, String> {
     .await
 }
 
+/// 读一张图片，回成 data URL 给 <img>。
+///
+/// 不用 Tauri 的 asset 协议：那条路要配 security.assetProtocol 的 scope，
+/// 而且没在真机上验过；一张参考图走 IPC 传 base64 完全够用，少一个配置面。
+#[command]
+async fn read_image_data_url(root: String, path: String) -> Result<String, String> {
+    blocking(move || {
+        use base64_lite::encode;
+        let full = PathBuf::from(&root).join(&path);
+        let bytes = std::fs::read(&full).map_err(|e| format!("读取 {path} 失败: {e}"))?;
+        if bytes.len() as u64 > 64 * 1024 * 1024 {
+            return Err("图片超过 64 MB，不加载".into());
+        }
+        let mime = match full.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "bmp" => "image/bmp",
+            _ => "application/octet-stream",
+        };
+        Ok(format!("data:{mime};base64,{}", encode(&bytes)))
+    })
+    .await
+}
+
+/// base64 编码（就为了上面那一个用处，不引第三方 crate）。
+mod base64_lite {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    pub fn encode(input: &[u8]) -> String {
+        let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+        for chunk in input.chunks(3) {
+            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+            let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+            out.push(TABLE[(n >> 18) as usize & 63] as char);
+            out.push(TABLE[(n >> 12) as usize & 63] as char);
+            out.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
+            out.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+        }
+        out
+    }
+}
+
 /// 选一张背景图片。
 #[command]
 async fn pick_image() -> Option<String> {
@@ -1159,6 +1203,7 @@ pub fn run() {
             recent_touch,
             forget_folder,
             workspace_scan,
+            read_image_data_url,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

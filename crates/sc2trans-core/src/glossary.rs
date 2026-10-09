@@ -364,10 +364,19 @@ pub fn global_path(data_dir: &Path) -> PathBuf {
     data_dir.join(GLOBAL_FILE)
 }
 
-/// 项目术语库的位置（跟着项目文件走）。
+/// 项目术语库的位置。
+///
+/// 工作区模式下跟着工程根走：@@<文件夹>/.sc2translater/glossary.json@@
+/// —— 数据全收在那个目录里，别在工程根下再撒一个文件。
+///
+/// 传进来的是工作区清单路径（@@.../.sc2translater/workspace.json@@）时就认父目录名；
+/// 老的项目文件（@@X.sc2transproj@@）仍然按原来的 @@X.glossary.json@@，兼容没迁移的。
 pub fn project_path(project_file: &Path) -> PathBuf {
-    let stem = project_file.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
     let dir = project_file.parent().unwrap_or(Path::new("."));
+    if dir.file_name().and_then(|n| n.to_str()) == Some(crate::workspace::WORKSPACE_DIR) {
+        return dir.join("glossary.json");
+    }
+    let stem = project_file.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
     dir.join(format!("{stem}.glossary.json"))
 }
 
@@ -545,5 +554,11 @@ mod tests {
     fn project_path_sits_next_to_project_file() {
         let p = project_path(Path::new("D:/x/战役.sc2transproj"));
         assert_eq!(p.file_name().unwrap().to_str().unwrap(), "战役.glossary.json");
+    }
+
+    #[test]
+    fn project_path_follows_the_workspace_dir() {
+        let p = project_path(Path::new("D:/x/.sc2translater/workspace.json"));
+        assert_eq!(p, PathBuf::from("D:/x/.sc2translater/glossary.json"), "工作区模式下术语库收进 .sc2translater");
     }
 }

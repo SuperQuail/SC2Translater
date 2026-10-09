@@ -8,7 +8,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { api, isTauri } from "./api";
 import { DEMO_ARCHIVE } from "./api/bridge";
-import type { AppInfo } from "./api/types";
+import type { AppInfo, RecentEntry } from "./api/types";
 import ActivityBar, { type Activity } from "./components/ActivityBar.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ContextMenu from "./components/ContextMenu.vue";
@@ -69,6 +69,8 @@ async function openFolderFlow(path?: string) {
   const root = path ? await ws.load(path) : await ws.openFolder();
   if (!root) return;
   project.setRoot(root);
+  // 项目术语库跟着工作区走：<根>/.sc2translater/glossary.json
+  project.state.projectPath.value = root.replace(/[\\/]$/, "") + "/.sc2translater/workspace.json";
   const list = ws.model.value?.files ?? [];
   if (list.length) {
     const s = project.state;
@@ -129,6 +131,10 @@ interface ViewPrefs {
   skin: Skin;
   /** 默认打开的标签视图。 */
   tabView: "table" | "kv" | "json";
+  /** 状态栏密度（1 全留 / 2 精简 / 3 折中）。 */
+  statusVariant: 1 | 2 | 3;
+  /** 「添加文件」入口留哪个：0 = 现状（三处都在，默认），1 标签条 / 2 工具栏 / 3 底部整条。 */
+  addStyle: 0 | 1 | 2 | 3;
   /** 背景图像。 */
   background: { path: string; opacity: number; placement: string; projectOnly: boolean };
 }
@@ -141,6 +147,8 @@ const prefs = ref<ViewPrefs>({
   activity: "explorer",
   skin: "vscode",
   tabView: "table",
+  statusVariant: 1,
+  addStyle: 0,
   background: { path: "", opacity: 15, placement: "center", projectOnly: false },
 });
 
@@ -148,6 +156,27 @@ const prefs = ref<ViewPrefs>({
 const settingsOpen = ref(false);
 const settingsPage = ref("appearance");
 const openBackgroundDialog = ref(false);
+/** 最近打开的**文件夹**（工作区改造后开始页要的是这个，不是项目文件）。 */
+const recentFolders = ref<RecentEntry[]>([]);
+
+async function loadRecentFolders() {
+  try {
+    const res = await api.recentFolders();
+    recentFolders.value = res.items;
+  } catch {
+    // 读不到就当空列表，不打扰用户
+  }
+}
+/** 从最近列表移除一个文件夹。 */
+async function onForgetFolder(path: string) {
+  try {
+    const res = await api.forgetFolder(path);
+    recentFolders.value = res.items;
+  } catch {
+    // 忽略
+  }
+}
+
 const settingsDraft = computed<SettingsDraft>(() => ({
   skin: prefs.value.skin,
   density: s.density.value,
@@ -279,7 +308,7 @@ onMounted(async () => {
   loadPrefs();
   info.value = await api.appInfo();
   await project.refreshRecents();
-  await Promise.all([glossary.refresh(), mt.loadConfig()]);
+  await Promise.all([glossary.refresh(), mt.loadConfig(), loadRecentFolders()]);
   await vcs.ensureTool();
 
   // 切文件 / 打开项目后，术语库与仓库状态都要跟着走。
@@ -342,6 +371,11 @@ onMounted(async () => {
       settingsOpen.value = true;
     }
     if (params.has("bgdlg")) openBackgroundDialog.value = true;
+    // 设计对比用：状态栏密度 / 添加文件入口
+    const sv = Number(params.get("status"));
+    if (sv >= 1 && sv <= 3) prefs.value.statusVariant = sv as 1 | 2 | 3;
+    const af = Number(params.get("addfile"));
+    if (af >= 0 && af <= 3) prefs.value.addStyle = af as 0 | 1 | 2 | 3;
     if (params.has("help")) helpOpen.value = true;
     // 只加载「最近的项目」而不打开任何文件 —— 用来截开始页
     if (params.has("recent")) await project.refreshRecents();
@@ -497,11 +531,18 @@ function onKeydown(event: KeyboardEvent) {
         return;
       case "o":
         event.preventDefault();
-        void project.openProjectDialog();
+        if (event.shiftKey) {
+          // Ctrl+Shift+O：往当前工程里加文件
+          void project.addFiles();
+        } else {
+          void openFolderFlow();
+        }
         return;
       case "s":
         event.preventDefault();
-        void project.saveProject(false);
+        // 工作区模式下清单由工作区自己保存（改一下就自动存），Ctrl+S 存的是它
+        if (ws.ready.value) void ws.save();
+        else void project.saveProject(false);
         return;
       case "e":
         event.preventDefault();
@@ -598,7 +639,12 @@ function onKeydown(event: KeyboardEvent) {
       @toggle-right="prefs.right = !prefs.right; savePrefs()"
     />
 
-    <FileTabs v-if="project.hasProject.value || s.doc.value" :project="project" :menu="menu" />
+    <FileTabs
+      v-if="project.hasProject.value || s.doc.value"
+      :project="project"
+      :menu="menu"
+      :show-add="prefs.addStyle === 0 || prefs.addStyle === 1"
+    />
 
     <div class="body">
       <!-- 活动栏一直在：没打开任何东西时它只亮「项目」那一项 -->
@@ -625,6 +671,7 @@ function onKeydown(event: KeyboardEvent) {
               :menu="menu"
               :tree="ws.tree.value"
               :active-path="ws.active.value?.path"
+              :add-style="prefs.addStyle"
               @open="onTreeOpen"
             />
             <FilterPane v-else-if="activity === 'filters'" :project="project" :menu="menu" />
@@ -638,12 +685,12 @@ function onKeydown(event: KeyboardEvent) {
             />
             <ProjectPane
               v-else
-              :recents="s.recents.value"
+              :recents="recentFolders"
               :current="currentProject"
-              @open="project.openArchive"
-              @create="project.openArchive"
-              @pick="project.openPath"
-              @forget="project.forgetRecent"
+              @open="openFolderFlow()"
+              @create="openFolderFlow()"
+              @pick="openFolderFlow"
+              @forget="onForgetFolder"
               @collapse="prefs.left = false; savePrefs()"
             />
           </div>
@@ -723,18 +770,18 @@ function onKeydown(event: KeyboardEvent) {
       @cancel="overwriteOpen = false"
       @confirm="runOverwriteAll"
     />
-    <StatusBar :project="project" />
+    <StatusBar :project="project" :variant="prefs.statusVariant" />
     </template>
 
     <WelcomeWindow
       v-else
-      :recents="s.recents.value"
+      :recents="recentFolders"
       :dropping="dropping"
       :version="info?.version"
       @open="openFolderFlow()"
       @create="openFolderFlow()"
       @pick="openFolderFlow"
-      @forget="project.forgetRecent"
+      @forget="onForgetFolder"
       @settings="settingsPage = 'appearance'; settingsOpen = true"
       @help="helpOpen = true"
       @minimize="winAction('minimize')"

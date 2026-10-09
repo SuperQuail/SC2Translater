@@ -1,31 +1,45 @@
 <script setup lang="ts">
 // 图片查看器：适应窗口 / 原始大小两档，够看参考图就行。
+//
+// 图片数据由后端读成 data URL 回传（不走 Tauri 的 asset 协议 —— 那条路要配 scope，
+// 而且没在真机上验过；一张参考图走 IPC 完全够用，少一个配置面）。
 
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
-import { formatBytes, imageUrl } from "../api";
+import { api, formatBytes, isTauri } from "../api";
 import type { OpenFile } from "../api/types";
 import Icon from "./Icon.vue";
 
 const props = defineProps<{ file: OpenFile; root: string }>();
 
 const fit = ref(true);
-const src = computed(() =>
-  props.file.url ? props.file.url : imageUrl(props.root.replace(/[\\/]$/, "") + "/" + props.file.path),
-);
+const src = ref(props.file.url ?? "");
+const error = ref("");
+
+onMounted(async () => {
+  if (src.value || !isTauri) return;
+  try {
+    src.value = await api.readImageDataUrl(props.root, props.file.path);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+});
+
+const sizeLabel = computed(() => formatBytes(props.file.size));
 </script>
 
 <template>
   <div class="image-viewer">
     <div class="bar">
-      <Icon name="image" :size="14" />
+      <Icon name="file-media" :size="14" />
       <span class="name mono">{{ props.file.path }}</span>
-      <span class="dim">{{ formatBytes(props.file.size) }}</span>
+      <span class="dim">{{ sizeLabel }}</span>
       <span class="grow"></span>
       <button class="toggle" :class="{ on: fit }" @click="fit = !fit">{{ fit ? "适应窗口" : "原始大小" }}</button>
     </div>
     <div class="stage" :class="{ fit }">
-      <img :src="src" :alt="props.file.path" />
+      <img v-if="src" :src="src" :alt="props.file.path" />
+      <p v-else class="err">{{ error || "正在读取图片…" }}</p>
     </div>
   </div>
 </template>
@@ -52,4 +66,5 @@ const src = computed(() =>
 .stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: var(--s6); }
 .stage.fit img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .stage img { display: block; }
+.err { color: var(--text-faint); font-size: var(--fs-sm); }
 </style>

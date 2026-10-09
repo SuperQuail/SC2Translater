@@ -8,8 +8,8 @@ import "@vscode-elements/elements/dist/bundled.js";
 // VS Code 官方 Dark Modern 主题色（由 scripts/gen-vscode-theme.py 生成）。
 // 真实 webview 里这些 --vscode-* 变量由宿主注入，桌面版没有宿主，所以要把主题搬进来。
 import "./styles/vscode-theme.css";
+// 令牌 + 基础样式（原先拆成 tokens / base 两个文件，合了 —— 分开没有实际好处）
 import "./styles/tokens.css";
-import "./styles/base.css";
 // JetBrains 皮肤：只在 <html data-skin="jb"> 时生效，把 --vscode-* 换一套值。
 import "./styles/jb-skin.css";
 import "./styles/jb-tokens.css";

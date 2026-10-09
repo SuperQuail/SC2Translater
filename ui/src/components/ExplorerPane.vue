@@ -18,6 +18,11 @@ const props = defineProps<{
   tree?: FileEntry[];
   /** 当前打开的文件。 */
   activePath?: string;
+  /**
+   * 「添加文件」入口留哪个（三处重复，选一处）：
+   *   0 三处都留（现状，默认）  1 只留标签条+  2 只留工具栏图标  3 只留底部整条
+   */
+  addStyle?: 0 | 1 | 2 | 3;
 }>();
 const emit = defineEmits<{ (e: "open", path: string): void }>();
 const s = props.project.state;
@@ -122,7 +127,12 @@ function projectMenu(event: MouseEvent) {
       <!-- @ts-expect-error vscode-toolbar-container 是自定义元素 -->
       <vscode-toolbar-container class="actions">
         <!-- @ts-expect-error 自定义元素 -->
-        <vscode-toolbar-button icon="new-file" label="添加文件（Ctrl+Shift+O）" @click="props.project.addFiles"></vscode-toolbar-button>
+        <vscode-toolbar-button
+          v-if="props.addStyle === 0 || props.addStyle === 2"
+          icon="new-file"
+          label="添加文件（Ctrl+Shift+O）"
+          @click="props.project.addFiles"
+        ></vscode-toolbar-button>
         <!-- @ts-expect-error 自定义元素 -->
         <vscode-toolbar-button icon="refresh" label="重新扫描当前文件" @click="props.project.reload"></vscode-toolbar-button>
         <!-- @ts-expect-error 自定义元素 -->
@@ -160,7 +170,7 @@ function projectMenu(event: MouseEvent) {
       </vscode-tree>
     </div>
 
-    <div class="actions-row">
+    <div v-if="props.addStyle === 0 || props.addStyle === 3" class="actions-row">
       <button class="add" @click="props.project.addFiles"><Icon name="plus" :size="12" />添加文件</button>
     </div>
 

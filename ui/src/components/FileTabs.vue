@@ -9,7 +9,12 @@ import { baseName } from "../api";
 import type { ContextMenuApi } from "../composables/useContextMenu";
 import type { Project } from "../composables/useProject";
 
-const props = defineProps<{ project: Project; menu: ContextMenuApi }>();
+const props = defineProps<{
+  project: Project;
+  menu: ContextMenuApi;
+  /** 只在这一版里保留标签条上的「添加文件」（三处重复，选一处）。 */
+  showAdd?: boolean;
+}>();
 const s = props.project.state;
 
 const editingIndex = ref(-1);
@@ -96,7 +101,14 @@ const total = computed(() => s.project.value.files.length);
       </div>
     </div>
 
-    <button class="add" title="添加文件（Ctrl+Shift+O）" @click="props.project.addFiles">+ 添加文件</button>
+    <button
+      v-if="props.showAdd"
+      class="add"
+      title="添加文件（Ctrl+Shift+O）"
+      @click="props.project.addFiles"
+    >
+      + 添加文件
+    </button>
     <span v-if="total > 1" class="hint">Ctrl+Tab 切换 · Ctrl+1…9 直跳</span>
   </div>
 </template>

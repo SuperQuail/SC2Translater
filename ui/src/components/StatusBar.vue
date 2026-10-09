@@ -7,7 +7,12 @@ import { formatBytes } from "../api";
 import type { Project } from "../composables/useProject";
 import Icon from "./Icon.vue";
 
-const props = defineProps<{ project: Project }>();
+/**
+ * 状态栏密度三版：
+ *   1 现状（全留）  2 精简到 4 项  3 折中 6 项
+ */
+const props = defineProps<{ project: Project; variant?: 1 | 2 | 3 }>();
+const variant = computed(() => props.variant ?? 1);
 const s = props.project.state;
 
 const percent = computed(() => props.project.progress.value.percent);
@@ -27,10 +32,10 @@ const resultLine = computed(() => {
       项目 {{ s.project.value.files.length }}
     </span>
 
-    <span class="item">键 <b>{{ props.project.counts.value.all }}</b></span>
+    <span v-if="variant !== 2" class="item">键 <b>{{ props.project.counts.value.all }}</b></span>
     <span class="item">待翻译 <b class="warn">{{ props.project.counts.value.todo }}</b></span>
-    <span class="item">已翻译 <b class="ok">{{ props.project.counts.value.translated }}</b></span>
-    <span class="item">当前筛选 <b>{{ shown }}</b></span>
+    <span v-if="variant === 1 || variant === 3" class="item">已翻译 <b class="ok">{{ props.project.counts.value.translated }}</b></span>
+    <span v-if="variant === 1" class="item">当前筛选 <b>{{ shown }}</b></span>
 
     <!-- @ts-expect-error vscode-progress-bar 是自定义元素 -->
     <vscode-progress-bar class="progress" :value="percent" :max="100" />
@@ -41,7 +46,11 @@ const resultLine = computed(() => {
       <button class="mini" :disabled="!props.project.canUndo.value" title="撤销（Ctrl+Z）" @click="props.project.undo">撤销</button>
       <button class="mini" @click="props.project.revertEdits">全部放弃</button>
     </span>
-    <span v-if="props.project.canUndo.value" class="item faint" title="可撤销的步数（Ctrl+Z 撤回，Ctrl+Y 重做）">
+    <span
+      v-if="props.project.canUndo.value && variant !== 3"
+      class="item faint"
+      title="可撤销的步数（Ctrl+Z 撤回，Ctrl+Y 重做）"
+    >
       记忆 {{ props.project.undoDepth.value }} 步
     </span>
 
