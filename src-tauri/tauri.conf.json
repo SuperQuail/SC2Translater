@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SC2Translater",
+  "version": "0.1.0",
+  "identifier": "net.miyin.sc2trans",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5184",
+    "beforeDevCommand": "pnpm -C ../ui dev",
+    "beforeBuildCommand": "pnpm -C ../ui build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "SC2Translater — 星际争霸 II 汉化工具",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 940,
+        "minHeight": 640,
+        "center": true,
+        "resizable": true,
+        "dragDropEnabled": true,
+        "decorations": true,
+        "transparent": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+  }
+}

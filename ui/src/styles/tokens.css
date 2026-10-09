@@ -1,0 +1,28 @@
+/* 设计令牌：颜色、间距、字体、圆角。组件里只用变量，不写死色值。 */
+:root {
+  --bg: #0f1420;
+  --bg-raised: #161d2c;
+  --bg-inset: #0b101a;
+  --border: #24314a;
+  --border-strong: #33456a;
+
+  --text: #e7edf7;
+  --text-dim: #9fb0c9;
+  --text-faint: #6b7d99;
+
+  --brand: #4d8ce0;
+  --brand-strong: #3a76c4;
+  --ok: #3aa675;
+  --warn: #d8a13a;
+  --err: #d2564b;
+  --info: #4d8ce0;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gap: 12px;
+  --gap-lg: 20px;
+  --pad: 14px;
+
+  --font: "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+}

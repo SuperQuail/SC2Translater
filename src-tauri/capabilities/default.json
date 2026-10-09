@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "本工具只需要核心权限：命令调用与文件对话框都走 Rust 侧。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
