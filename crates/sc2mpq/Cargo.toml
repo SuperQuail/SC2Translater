@@ -1,0 +1,22 @@
+[package]
+name = "sc2mpq"
+description = "星际争霸 II 文档（.SC2Map/.SC2Mod）的 MPQ 容器读写层"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["bzip2-backend"]
+# bzip2 需要一个 C 工具链（bzip2-sys 用 cc 编）。关掉它仍然能读写归档，
+# 只是写出时只能用 zlib（掩码 0x02），体积会比暴雪产物大一些。
+bzip2-backend = ["dep:bzip2"]
+
+[dependencies]
+bzip2 = { workspace = true, optional = true }
+crc32fast.workspace = true
+flate2.workspace = true
+lzma-rs.workspace = true
+md-5.workspace = true
+thiserror.workspace = true

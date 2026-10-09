@@ -1,0 +1,22 @@
+# 统一换行，避免 Windows 上「LF 将被替换为 CRLF」的噪声告警。
+* text=auto
+
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.py        text eol=lf
+*.ts        text eol=lf
+*.vue       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.txt       text eol=lf
+*.yml       text eol=lf
+
+# SC2 的地图脚本是 CRLF 世界，别乱动
+*.galaxy    text eol=crlf
+
+# 二进制归档
+*.SC2Map    binary
+*.SC2Mod    binary
+
+# 生成物
+python/uv.lock linguist-generated
