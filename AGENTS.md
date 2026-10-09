@@ -111,6 +111,7 @@ cd python; uv sync; uv run pytest; uv run sc2trans-py audit <map>
 
 # 手工验收
 target/release/sc2trans.exe verify <产物.SC2Map>
+python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必须 LOADED
 ```
 
 ---
@@ -128,6 +129,10 @@ target/release/sc2trans.exe verify <产物.SC2Map>
    `ui/src/api/types.ts`、以及 Python 的 `python/src/sc2trans/model.py`。
 6. **PowerShell 脚本里别写中文**：以无 BOM 的 UTF-8 写盘后，PS 会按 ANSI 解读而解析失败（踩过）。
 7. **重活必须 `spawn_blocking`**：解一个 44MB 的模组要几秒，放 UI 线程就是「点了没反应」。
+8. **改了写侧就一定要重跑编辑器验收**。容器层的自检全绿、StormLib 也认，都不代表 SC2 编辑器会接受
+   —— 历史上就差一个 `dwRawChunkSize` 字段。见 `docs/design/验收记录.md`。
+9. **Vue 里别把 ref 塞进 `reactive()`**：reactive 会深层解包 ref，
+   于是 `s.archive` 直接变成值、`s.archive.value` 变成非法访问。用普通对象 + 显式 `.value`。
 
 ---
 
@@ -136,10 +141,13 @@ target/release/sc2trans.exe verify <产物.SC2Map>
 * [ ] `cargo test` 全绿（含真实归档的 HET/BET 逐字节重生成）
 * [ ] `cargo clippy --all-targets` 无警告
 * [ ] `cd python; uv run pytest` 全绿
-* [ ] 在一张真实地图上跑 `audit -> seed -> verify`：
+* [ ] `pnpm -C ui build` 与 `pnpm -C ui test` 通过
+* [ ] 在一张真实地图上跑 `audit -> fill/seed -> verify`：
       `dwRawChunkSize == 0` 且 `healthy == true`，且**未改动的组件逐字节不变**
 * [ ] 产物过一遍 StormLib（`../SC2Diff/tools/stormlib_verify.exe`）
-* [ ] 人工用银河编辑器打开一次产物（见 `docs/design/验收清单.md`）
+* [ ] **银河编辑器打开产物不崩溃** —— 这是 MPQ 改动的唯一合格判据，
+      用 `../SC2Diff/tools/editor_accept.py <原件作对照> <产物>`，判定必须为 `LOADED`。
+      实测记录见 `docs/design/验收记录.md`。
 
 ---
 

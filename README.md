@@ -51,9 +51,12 @@ sc2trans apply   地图.SC2Map keys.json -o 中文.SC2Map   # 写回目标语言
 sc2trans seed    地图.SC2Map --target zhCN       # 没有译文时的兜底：先用原文补满
 ```
 
-**「一键兜底」是最快见效的一步**：把 enUS 的文本整份补进 zhCN，
-游戏里至少显示英文，而不是 `Param/Value/xxxxxxxx`。
-之后再把译文填进 JSON 走 `apply`。
+**最快见效的是「补全默认语言」**：`fill --locales all` 会用源语言把**所有**没有语言文件的语言一次补上，
+游戏切到任何一种语言都不会再露出 `Param/Value/xxxxxxxx`。
+之后再把译文填进 JSON / GUI 走 `apply`。
+
+实测（`Stukov2.SC2Map`，原本只有 enUS）：一次补齐 11 种语言、7447 条，
+12 种语言覆盖率全部 100%，体积 902 586 → 1 059 752 字节。
 
 ---
 
@@ -77,7 +80,8 @@ target/release/sc2trans.exe apply   "...\你的地图.SC2Map" keys.json -o 汉�
 | `extract <archive> [-o json]` | 提取翻译键；`--source/--target/--file/--all-locales` |
 | `audit <archive>` | 按语言算覆盖率（回答「为什么显示成路径」） |
 | `apply <archive> <json> [-o out]` | 写回译文；`--fill-missing/--with-original/--sort/--force` |
-| `seed <archive> [-o out]` | 用原文补满目标语言 |
+| `fill <archive> --locales all` | **补全默认语言**：用源语言填充「没有语言文件」的语言 |
+| `seed <archive> [-o out]` | 同 fill，只补当前目标语言 |
 | `verify <archive>` | 容器自检 + 字符串表往返回读 |
 
 **给 agent 的约定**：任何子命令加 `--json`（放在前后都行），
@@ -97,7 +101,9 @@ stdout 就是一个完整 JSON 对象，进度与告警全部走 stderr，退出
 | 批量操作 | 全选当前结果、`原文填入空译文`、清空译文；作用范围可选「当前筛选结果 / 全部条目」 |
 | 详情面板 | 完整键、来源组件、整段原文、**内联标记清单**（`<n/>`、`%token%` 必须整体保留） |
 | 导入 / 导出 | 导出 JSON 交给翻译者；把翻译好的 JSON 导回来按 (字符串表, 键) 合并 |
-| 一键兜底 | 用原文把目标语言补满，先消除键路径 |
+| **补全语言** | 一张只带 enUS 的地图，一次把**其余全部语言**补上（默认只补缺的键，不覆盖已有译文） |
+| **JSON 编辑器** | 内置的 sc2trans.keys.v1 编辑器：就地校验、格式化、按 key 排序，改完「应用到表格」 |
+| 一键兜底 | 只用原文补当前目标语言 |
 | 密度与键盘 | 紧凑 / 标准 / 舒适三档行高；↑↓ 移动、Ctrl+F 搜索、Ctrl+S 导出、Ctrl+Enter 写回 |
 | 拖放 | 把 `.SC2Map` / `.SC2Mod` 直接拖进窗口 |
 
@@ -195,7 +201,8 @@ cd python; uv run pytest          # 28 项
 | 改动 1 个组件后，其余 **182 个组件逐字节不变** | 通过 |
 | Rust 与 Python 在真实地图上提取结果**逐字段一致**（677/677） | 通过 |
 | 两边产出的 zhCN 组件**逐字节相同** | 通过 |
-| 产物通过**独立第三方 StormLib** 全量抽取（51/51） | 通过 |
+| 产物通过**独立第三方 StormLib** 全量抽取（81/81） | 通过 |
+| **银河编辑器打开产物不崩溃**（原件作对照：3 份全部 LOADED） | 通过 |
 
 ---
 
