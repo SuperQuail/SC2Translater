@@ -10,14 +10,11 @@ ui/dist/
 src-tauri/gen/
 src-tauri/target/
 
-# Python
+# Python（只剩 scripts/ 下的构建期脚本，无 uv 工程）
 __pycache__/
 *.py[cod]
 .venv/
-python/.venv/
 *.egg-info/
-dist/
-build/
 
 # 本地素材与产物（体积大 / 含第三方版权资源，不入库）
 /testdata/*.SC2Map

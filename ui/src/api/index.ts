@@ -150,12 +150,6 @@ export function formatCoverage(coverage: number): string {
   return (coverage * 100).toFixed(1) + "%";
 }
 
-export function severityLabel(severity: string): string {
-  if (severity === "ok") return "正常";
-  if (severity === "warning") return "需要处理";
-  return "提示";
-}
-
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";

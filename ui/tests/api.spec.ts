@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { baseName, formatBytes, formatCoverage, markupTokens, severityLabel, statusLabel } from "../src/api";
+import { baseName, formatBytes, formatCoverage, markupTokens, statusLabel } from "../src/api";
 import { DEMO_ARCHIVE, call, isTauri } from "../src/api/bridge";
 import { entryId } from "../src/composables/useProject";
 import type { Entry, TranslationDocument } from "../src/api/types";
@@ -12,12 +12,6 @@ describe("格式化助手", () => {
   it("覆盖率按一位小数显示", () => {
     expect(formatCoverage(1)).toBe("100.0%");
     expect(formatCoverage(0.135)).toBe("13.5%");
-  });
-
-  it("严重程度有中文标签", () => {
-    expect(severityLabel("ok")).toBe("正常");
-    expect(severityLabel("warning")).toBe("需要处理");
-    expect(severityLabel("something")).toBe("提示");
   });
 
   it("体积分档显示", () => {

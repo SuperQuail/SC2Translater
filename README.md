@@ -180,17 +180,6 @@ cargo build --release
 
 CLI 侧同一套能力也在：`sc2diff -C <repo> status|add|commit|log|diff|branch|checkout|tag|pack|unpack`。
 
-### 3.6 Python 调研原型
-
-事实验证与交叉判据都在这一份里，Rust 实现与它做差分测试。
-
-```powershell
-cd python
-uv sync
-uv run sc2trans-py audit "...\地图.SC2Map"
-uv run pytest
-```
-
 ---
 
 ## 4. 翻译键 JSON（schema = `sc2trans.keys.v1`）
@@ -234,7 +223,6 @@ crates/
 src-tauri/         Tauri 2 桌面壳（只做命令转发，业务全在 core）
                    resources/sc2diff.exe —— 内置的版本管理工具（首次使用时静默安装）
 ui/                Vue 3 + TypeScript + Vite 前端
-python/            uv 管理的调研原型 + 对照实现（Rust 与它做差分测试）
 docs/research/     实测调研：MPQ 格式规格、SC2 多语言机制
 docs/design/       架构与设计文档
 testdata/          本地样本与产物（不入库）
@@ -250,7 +238,7 @@ testdata/          本地样本与产物（不入库）
 ```powershell
 cargo test                       # 单元 + 真实归档验收（找不到样本自动跳过）
 cargo clippy --all-targets       # 应无警告
-cd python; uv run pytest          # 28 项
+pnpm -C ui test                  # 前端 21 项
 ```
 
 验收判据（全部已通过）：
@@ -261,8 +249,7 @@ cd python; uv run pytest          # 28 项
 | 头部 6 个 MD5 摘要全部有效、HET 与经典表查找逐名一致 | 通过 |
 | 产物 `dwRawChunkSize == 0`（这是编辑器接受改动的硬条件） | 通过 |
 | 改动 1 个组件后，其余 **182 个组件逐字节不变** | 通过 |
-| Rust 与 Python 在真实地图上提取结果**逐字段一致**（677/677） | 通过 |
-| 两边产出的 zhCN 组件**逐字节相同** | 通过 |
+| 与调研期的 Python 对照实现提取结果**逐字段一致**（677/677）、产物组件逐字节相同 | 通过（该原型完成使命后已删除） |
 | 产物通过**独立第三方 StormLib** 全量抽取（81/81） | 通过 |
 | **银河编辑器打开产物不崩溃**（原件作对照：3 份全部 LOADED） | 通过 |
 

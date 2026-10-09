@@ -12,7 +12,7 @@
 | 项目名 | **SC2Translater** |
 | 定位 | 《星际争霸 II》地图 / 模组的**汉化工具**（翻译键提取与回填） |
 | 许可证 | MIT |
-| 语言 | Rust（交付） + Python（调研原型） + TypeScript（GUI 前端） |
+| 语言 | Rust（交付） + TypeScript（GUI 前端） |
 | 目标平台 | Windows 优先 |
 | CLI 名 | `sc2trans` |
 | GUI | Tauri 2.11 + Vue 3.5 + Vite 8 |
@@ -42,7 +42,6 @@
 | 术语库 | `crates/sc2trans-core/src/glossary.rs`（全局 / 项目两个作用域，项目覆盖全局） |
 | 机翻 | `crates/sc2trans-core/src/mt.rs`（离线术语拼装 / 任意 OpenAI 兼容接口，带磁盘缓存） |
 | 版本管理 | `crates/sc2trans-core/src/vcs.rs` 驱动**内置**的 SC2Diff（`src-tauri/resources/sc2diff.exe`） |
-| Python 原型 | uv 管理，放在 `python/` 子目录 |
 
 ```
 依赖方向（不可违反）：
@@ -111,9 +110,6 @@ pnpm -C ui build                 # 生成 ui/dist
 cargo build --release            # 桌面壳（custom-protocol 已是默认特性，不用再带 --features）
 pnpm -C ui test                  # vitest
 
-# Python 原型（对照实现）
-cd python; uv sync; uv run pytest; uv run sc2trans-py audit <map>
-
 # 手工验收
 target/release/sc2trans.exe verify <产物.SC2Map>
 python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必须 LOADED
@@ -131,8 +127,8 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 3. **改字符串表必须逐字节保真**。写入前先跑 `verify`，它有一项 `string_tables_roundtrip_exact`。
 4. **不要用整归档校验来判成败**。`(listfile)` 与 `(attributes)` 的 MD5 约定是**全零**、
    后者的 CRC 约定是 **0**，所以 `md5_bad == 2 / crc_bad == 1` 才是**正确**的。
-5. **改动 core 的 JSON 结构要同步三处**：`crates/sc2trans-core/src/model.rs`、
-   `ui/src/api/types.ts`、以及 Python 的 `python/src/sc2trans/model.py`。
+5. **改动 core 的 JSON 结构要同步两处**：`crates/sc2trans-core/src/model.rs` 与
+   `ui/src/api/types.ts`。（原先还有第三处 Python 镜像，那套原型已经在调研结束后删掉了。）
 6. **PowerShell 脚本里别写中文**：以无 BOM 的 UTF-8 写盘后，PS 会按 ANSI 解读而解析失败（踩过）。
 7. **重活必须 `spawn_blocking`**：解一个 44MB 的模组要几秒，放 UI 线程就是「点了没反应」。
 8. **改了写侧就一定要重跑编辑器验收**。容器层的自检全绿、StormLib 也认，都不代表 SC2 编辑器会接受
@@ -157,6 +153,8 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
     发布时记得把 `sc2diff.exe` 和 `SC2Translater.exe` **放在同一个目录**（见 dist/）。
 15. **PowerShell 脚本里一律用英文提示**（第 6 条）：这条已经踩了三次 —— 中文字符串在无 BOM 的
     UTF-8 脚本里会被 PS 按 ANSI 解读，直接把脚本解析崩掉。
+16. **前端改动没有用户点头不许落**。凡会改变界面的改动，先出预览图拿到明确同意再写进代码；
+    有设计自由度的至少给 3 版方案。细则见第 8 节。
 
 ---
 
@@ -164,7 +162,6 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 
 * [ ] `cargo test` 全绿（含真实归档的 HET/BET 逐字节重生成）
 * [ ] `cargo clippy --all-targets` 无警告
-* [ ] `cd python; uv run pytest` 全绿
 * [ ] `pnpm -C ui build` 与 `pnpm -C ui test` 通过
 * [ ] 在一张真实地图上跑 `audit -> fill/seed -> verify`：
       `dwRawChunkSize == 0` 且 `healthy == true`，且**未改动的组件逐字节不变**
@@ -175,11 +172,42 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 
 ---
 
-## 8. 与 Python 原型的关系
+## 8. 前端改动的走法（硬规矩）
 
-`python/` 里的实现是**对照实现（oracle）**，不是废弃代码：
+**凡是会改变界面的改动，先出图，后写码。** 顺序不能反：
 
-* 事实先在 Python 侧逐字节验证清楚，再落到 Rust；
-* 两边的 CLI 契约与 JSON 结构必须一致，便于**差分测试**；
-* `python/src/sc2trans/vendor/sc2mpq.py` 是从上游 SC2Diff **逐字节复制**的，
-  **不要改**（要改先改上游，再重新复制并更新 SHA256）。
+1. **先渲染预览**。用无头 Edge 截图，现成的深链直接可用：
+
+```powershell
+$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+# 开发服务器：pnpm -C ui dev（只监听 IPv6，必须用 localhost，别用 127.0.0.1）
+& $edge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1600,900 --virtual-time-budget=12000 --screenshot=out.png 'http://localhost:5184/?demo=1&project=1&pane=scm'
+```
+
+   深链参数（App.vue 的 onMounted 里那个 if (!isTauri) 块）：
+
+   * `?demo=1` —— 进工作区（演示数据，不需要真归档）
+   * `&project=1` —— 打开示例项目（多文件、标签条、统计）
+   * `&pane=explorer|filters|locales|glossary|scm` —— 指定左栏面板
+   * `&view=table|kv|json` —— 指定中间视图；`&fill=1` / `&overwrite=1` / `&help=1` / `&mt=1` 弹对应面板
+
+   **加了新界面就顺手加一个深链参数**，否则那个状态截不出来，也就没法给用户看。
+
+2. **有设计自由度就给至少 3 版**：3 张图并排，每版一句话讲清取舍（不是「A/B/C 好看吗」）。
+   没有自由度（只是修个边距之类）就给 1 版，并说明「没有可选项，只有这一种」。
+3. **等明确通过**。「随便」「都行」「你看着办」不算通过 —— 那要继续问。
+4. **通过了才改代码**，并把选中的那版连同理由记进 `docs/design/` 下对应的文档。
+5. 改完**再截一次图**放进 `docs/design/`，跟当初给用户看的那版对上。
+
+纯后端、纯文档、纯测试的改动不受这条约束 —— 但如果改完**渲染出来不一样**，那就算前端改动。
+
+---
+
+## 9. 已删除的东西，别再往回加
+
+调研期的 `python/` 对照实现已经删掉。那些事实现在由两处保证：
+
+* `docs/research/*.md` 记着结论与当时的证据；
+* `cargo test` 在 5 个真实归档上逐字节断言（HET/BET 重生成、六头部摘要、字符串表往返）。
+
+要重新引入「第二个实现」之前先想清楚：它会立刻变成每次改 JSON 都要同步的第三处。

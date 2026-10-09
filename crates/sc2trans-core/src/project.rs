@@ -5,7 +5,6 @@
 //!
 //! 这一层**不碰文件系统**（除了显式的 load/save），路径由调用方给，便于测试。
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -170,14 +169,6 @@ impl Project {
         Some(removed)
     }
 
-    pub fn active_file(&self) -> Option<&ProjectFile> {
-        self.files.get(self.active)
-    }
-
-    pub fn active_file_mut(&mut self) -> Option<&mut ProjectFile> {
-        self.files.get_mut(self.active)
-    }
-
     /// 汇总统计（文件列表头部用）。
     pub fn totals(&self) -> FileStats {
         let mut t = FileStats::default();
@@ -330,19 +321,6 @@ impl RecentProjects {
     pub fn prune(&mut self) {
         self.items.retain(|e| PathBuf::from(&e.path).is_file());
     }
-}
-
-/// 项目里各状态的汇总，给 UI 画进度条。
-pub fn status_breakdown(project: &Project) -> BTreeMap<String, usize> {
-    let mut out = BTreeMap::new();
-    for f in &project.files {
-        if let Some(s) = &f.stats {
-            *out.entry("missing".to_string()).or_insert(0) += s.missing;
-            *out.entry("identical".to_string()).or_insert(0) += s.identical;
-            *out.entry("translated".to_string()).or_insert(0) += s.translated;
-        }
-    }
-    out
 }
 
 #[cfg(test)]

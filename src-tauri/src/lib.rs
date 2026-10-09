@@ -225,26 +225,6 @@ async fn audit(archive: String, source: String) -> Result<Value, String> {
     blocking(move || ops::audit(Path::new(&archive), &source).map_err(|e| format!("{e:#}"))).await
 }
 
-/// 导出翻译键到 JSON。
-#[command]
-async fn extract(
-    archive: String,
-    source: String,
-    target: String,
-    out: String,
-    all_locales: bool,
-) -> Result<Value, String> {
-    blocking(move || {
-        let doc = ops::extract(Path::new(&archive), &source, &target, None, all_locales)
-            .map_err(|e| format!("{e:#}"))?;
-        let value = serde_json::to_value(&doc).map_err(|e| format!("{e:#}"))?;
-        let text = serde_json::to_string_pretty(&value).map_err(|e| format!("{e:#}"))?;
-        std::fs::write(&out, format!("{text}\n")).map_err(|e| format!("写出 {out} 失败: {e}"))?;
-        Ok(value)
-    })
-    .await
-}
-
 /// 载入全部翻译键（表格数据源）。不落盘，直接把文档结构返回给前端。
 #[command]
 async fn load_keys(
@@ -890,7 +870,6 @@ pub fn run() {
             pick_archive_save,
             inspect,
             audit,
-            extract,
             load_keys,
             export_document,
             import_document,

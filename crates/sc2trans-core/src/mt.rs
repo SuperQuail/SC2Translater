@@ -200,11 +200,6 @@ impl MtEngine {
         Ok(suggestion)
     }
 
-    /// 批量：逐条调（在线接口也能用，但会被限流打脸 —— 界面上是「按需」触发）。
-    pub fn translate_batch(&mut self, texts: &[String], glossary: &GlossaryPair) -> Vec<Result<Suggestion>> {
-        texts.iter().map(|t| self.translate(t, glossary)).collect()
-    }
-
     fn call_openai(&self, text: &str, terms: &[Term]) -> Result<Suggestion> {
         if !self.config.ready() {
             return Err(CoreError::Invalid(

@@ -14,8 +14,6 @@
 //!
 //! 设计原则是**逐字节保真**：无法识别的行原样保留在 Raw 记录里，写回时按原顺序输出。
 
-use std::fmt::Write as _;
-
 pub const BOM_BYTES: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// 译文与原文的分隔符。暴雪官方本地化文件即使用此约定。
@@ -201,11 +199,6 @@ impl StringFile {
         self.get(key).is_some()
     }
 
-    /// 键 -> 值。
-    pub fn as_map(&self) -> std::collections::HashMap<String, String> {
-        self.pairs().map(|p| (p.key.clone(), p.value.clone())).collect()
-    }
-
     /// 键集合（BTreeSet：便于做集合运算且顺序确定）。
     pub fn key_set(&self) -> std::collections::BTreeSet<String> {
         self.pairs().map(|p| p.key.clone()).collect()
@@ -294,32 +287,6 @@ impl StringFile {
         added
     }
 
-    /// 统计值里的内联标记数量（<n/>、<c val>、<s val>、<IMG>、%token%），用于回填后自检。
-    pub fn markup_count(&self) -> usize {
-        self.pairs()
-            .map(|p| {
-                p.value.matches("<n/>").count()
-                    + p.value.matches("<c val=").count()
-                    + p.value.matches("<s val=").count()
-                    + p.value.matches("<IMG ").count()
-                    + p.value.matches('%').count() / 2
-            })
-            .sum()
-    }
-
-    /// 调试用摘要。
-    pub fn describe(&self) -> String {
-        let mut s = String::new();
-        let _ = write!(
-            s,
-            "{} 条 / BOM={} / {} / 末尾换行={}",
-            self.len(),
-            self.bom,
-            self.newline.label(),
-            self.trailing_newline
-        );
-        s
-    }
 }
 
 #[cfg(test)]

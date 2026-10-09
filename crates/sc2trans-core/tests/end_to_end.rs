@@ -1,6 +1,6 @@
 //! 领域层的端到端测试：造一个真实 MPQ 归档 -> extract -> seed/apply -> 回读校验。
 //!
-//! 与 python/tests/test_ops.py 一一对应，两边是同一条验收标准的两种实现。
+//! 端到端验收：在真实归档上跑完整流程。
 
 use std::path::{Path, PathBuf};
 

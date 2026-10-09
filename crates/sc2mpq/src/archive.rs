@@ -974,7 +974,7 @@ mod tests {
     }
 
     #[test]
-    fn hash_string_matches_python_reference() {
+    fn hash_string_matches_reference() {
         // 由 Python 原型（SC2Diff tools/sc2mpq.py）算出，作为两边一致性的锚点
         assert_eq!(hash_string("(hash table)", HASH_FILE_KEY), 0xC3AF_3770);
         assert_eq!(hash_string("(block table)", HASH_FILE_KEY), 0xEC83_B3A3);
@@ -983,7 +983,7 @@ mod tests {
     }
 
     #[test]
-    fn jenkins_name_hash_matches_python_reference() {
+    fn jenkins_name_hash_matches_reference() {
         assert_eq!(
             crate::jenkins_name_hash("New/Component.txt", 64),
             0x8F4C_0833_8E99_001A
