@@ -1,0 +1,34 @@
+# Rust
+/target
+**/target/
+*.pdb
+*.exe
+
+# Node / Tauri
+node_modules/
+ui/dist/
+src-tauri/gen/
+src-tauri/target/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+python/.venv/
+*.egg-info/
+dist/
+build/
+
+# 本地素材与产物（体积大 / 含第三方版权资源，不入库）
+/testdata/*.SC2Map
+/testdata/*.SC2Mod
+/testdata/**/*.SC2Map
+/testdata/**/*.SC2Mod
+/out/
+/artifacts/
+*.log
+
+# 编辑器 / 系统
+Thumbs.db
+desktop.ini
+.DS_Store

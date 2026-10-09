@@ -1,0 +1,25 @@
+[project]
+name = "sc2trans-research"
+version = "0.1.0"
+description = "星际争霸 II 地图汉化工具 —— Python 调研原型（MPQ 读写 + 翻译键提取/回填）"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = []
+
+[project.scripts]
+sc2trans-py = "sc2trans.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sc2trans"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
