@@ -4,7 +4,7 @@
 
 import Icon from "./Icon.vue";
 
-export type Activity = "explorer" | "filters" | "locales" | "glossary" | "scm";
+export type Activity = "projects" | "explorer" | "filters" | "locales" | "glossary" | "scm";
 const props = defineProps<{
   modelValue: Activity;
   leftOpen: boolean;
@@ -14,6 +14,7 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: "update:modelValue", v: Activity): void }>();
 
 const ITEMS: Array<{ id: Activity; icon: string; title: string }> = [
+  { id: "projects", icon: "folder-library", title: "项目（新建 / 打开 / 最近的项目）" },
   { id: "explorer", icon: "files", title: "资源管理器（项目与文件）" },
   { id: "filters", icon: "filter", title: "过滤器（状态 / 字符串表）" },
   { id: "locales", icon: "globe", title: "语言覆盖" },

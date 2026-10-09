@@ -190,7 +190,6 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 | `?demo=1` | 进工作区（演示数据，不需要真归档） |
 | `?project=1` | 打开示例项目（多文件、标签条、统计） |
 | `?recent=1` | 只加载「最近的项目」，不打开文件 —— 用来截开始页 |
-| `&start=1\|2\|3` | 开始页三版排布 |
 | `&skin=jb` | 整套皮肤切成 JetBrains（Ring UI 令牌） |
 | `&pane=…` | 指定左栏面板 |
 | `&view=table\|kv\|json` | 指定中间视图 |

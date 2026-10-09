@@ -16,6 +16,8 @@ const props = defineProps<{
   menu: ContextMenuApi;
   leftOpen: boolean;
   rightOpen: boolean;
+  /** 桌面壳里关掉了系统标题栏，窗口按钮由我们自己画。 */
+  windowControls?: boolean;
 }>();
 const emit = defineEmits<{
   (e: "fill"): void;
@@ -23,6 +25,9 @@ const emit = defineEmits<{
   (e: "help"): void;
   (e: "toggle-left"): void;
   (e: "toggle-right"): void;
+  (e: "minimize"): void;
+  (e: "maximize"): void;
+  (e: "close"): void;
 }>();
 
 const s = props.project.state;
@@ -251,6 +256,13 @@ watch([() => s.source.value, () => s.target.value], () => void 0);
         @click="emit('help')"
       ></vscode-button>
     </div>
+
+    <!-- 自绘窗口按钮（tauri.conf 里 decorations=false，由我们画） -->
+    <div v-if="props.windowControls" class="win">
+      <button class="win-btn" title="最小化" @click="emit('minimize')"><span class="glyph">—</span></button>
+      <button class="win-btn" title="最大化" @click="emit('maximize')"><span class="glyph">▢</span></button>
+      <button class="win-btn danger" title="关闭" @click="emit('close')"><span class="glyph">✕</span></button>
+    </div>
   </header>
 </template>
 
@@ -303,6 +315,19 @@ watch([() => s.source.value, () => s.target.value], () => void 0);
 .meta { font-size: var(--fs-xs); color: var(--text-faint); }
 
 .panels, .actions { display: flex; align-items: center; gap: var(--s2); }
+
+.win { display: flex; margin-left: var(--s3); align-self: stretch; }
+.win-btn {
+  width: 44px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.win-btn:hover { background: var(--list-hover); color: var(--text); }
+.win-btn.danger:hover { background: #c42b1c; color: #fff; }
+.glyph { font-size: 12px; line-height: 1; }
 
 /* 「一键全覆盖」是破坏性操作，描边带点警示色 */
 .overwrite::part(control) { border-color: var(--warn); }

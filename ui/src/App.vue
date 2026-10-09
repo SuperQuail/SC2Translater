@@ -4,7 +4,7 @@
 // 布局参考 VS Code：最左是活动栏，它决定第二栏显示什么；中间是编辑区（多标签），
 // 右侧是详情。两栏都可收起、宽度可拖，且记在本地 —— 汉化是长时间盯着屏幕的活。
 
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { api, isTauri } from "./api";
 import { DEMO_ARCHIVE } from "./api/bridge";
@@ -24,7 +24,8 @@ import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import SourceControlPane from "./components/SourceControlPane.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
-import WelcomePane from "./components/WelcomePane.vue";
+import ProjectPane from "./components/ProjectPane.vue";
+import WelcomeWindow from "./components/WelcomeWindow.vue";
 import WorkspacePane from "./components/WorkspacePane.vue";
 import { useContextMenu } from "./composables/useContextMenu";
 import { useGlossary } from "./composables/useGlossary";
@@ -67,8 +68,6 @@ interface ViewPrefs {
   density: string;
   activity: Activity;
   skin: Skin;
-  /** 开始页排布，1/2/3 对应三版方案。 */
-  startVariant: 1 | 2 | 3;
 }
 const prefs = ref<ViewPrefs>({
   left: true,
@@ -78,7 +77,40 @@ const prefs = ref<ViewPrefs>({
   density: "standard",
   activity: "explorer",
   skin: "vscode",
-  startVariant: 1,
+});
+
+/** 小窗（没打开项目）与主窗（打开了）两套尺寸，照 JetBrains 换窗的做法。 */
+const WELCOME_SIZE = { w: 1100, h: 760 };
+const WORKSPACE_SIZE = { w: 1440, h: 900 };
+
+async function applyWindowMode(hasDocument: boolean) {
+  if (!isTauri) return;
+  const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");
+  const win = getCurrentWindow();
+  const size = hasDocument ? WORKSPACE_SIZE : WELCOME_SIZE;
+  await win.setSize(new LogicalSize(size.w, size.h));
+  await win.center();
+}
+
+/**
+ * 窗口级操作（最小化 / 最大化 / 关闭）。
+ * 只在桌面壳里有效；浏览器调试时静默忽略。
+ */
+async function winAction(action: "minimize" | "toggleMaximize" | "close") {
+  if (!isTauri) return;
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow()[action]();
+}
+
+/** 没打开任何东西时，左栏必须开着 —— 它就是整个舞台的左半。 */
+const stageOpen = computed(() => (s.doc.value ? prefs.value.left : true));
+
+/** 当前打开的工程（没打开就是 null），给「打开项目」那一组用。 */
+const currentProject = computed(() => {
+  const p = s.projectPath.value;
+  if (!p) return null;
+  const base = p.split(/[\\/]/).pop() ?? p;
+  return { name: s.project.value.name || base, path: p };
 });
 
 /** 皮肤靠 <html data-skin> 切换；CSS 那边只换令牌，不换组件。 */
@@ -141,8 +173,14 @@ onMounted(async () => {
   watch(
     () => s.doc.value,
     async (doc) => {
-      if (!doc) return;
+      if (!doc) {
+        // 回到「没打开项目」：左栏切成「项目」，窗口收回小窗
+        activity.value = "projects";
+        void applyWindowMode(false);
+        return;
+      }
       void glossary.refresh();
+      void applyWindowMode(true);
       await vcs.refresh();
     },
   );
@@ -163,8 +201,6 @@ onMounted(async () => {
       prefs.value.skin = "jb";
       applySkin();
     }
-    const start = Number(params.get("start"));
-    if (start === 1 || start === 2 || start === 3) prefs.value.startVariant = start as 1 | 2 | 3;
     const pane = params.get("pane");
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
@@ -182,6 +218,12 @@ onMounted(async () => {
       window.setTimeout(() => void mt.translate(project.selectedEntry.value?.source), 600);
     }
     if (params.has("overwrite")) overwriteOpen.value = true;
+  }
+
+  // 空舞台时活动栏停在「项目」那一项，窗口是小窗
+  if (!s.doc.value) {
+    activity.value = "projects";
+    void applyWindowMode(false);
   }
 
   window.addEventListener("keydown", onKeydown);
@@ -379,7 +421,13 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="app">
+    <!-- 打开文件时是主界面；什么都没打开时，整窗换成 JetBrains 式的小窗 -->
+    <template v-if="s.doc.value">
     <TitleBar
+      :window-controls="isTauri"
+      @minimize="winAction('minimize')"
+      @maximize="winAction('toggleMaximize')"
+      @close="winAction('close')"
       :project="project"
       :info="info"
       :menu="menu"
@@ -395,13 +443,14 @@ function onKeydown(event: KeyboardEvent) {
     <FileTabs v-if="project.hasProject.value || s.doc.value" :project="project" :menu="menu" />
 
     <div class="body">
-      <template v-if="s.doc.value">
-        <ActivityBar
-          v-model="activity"
-          :left-open="prefs.left"
-          :badges="{ scm: vcs.changeCount.value }"
-        />
+      <!-- 活动栏一直在：没打开任何东西时它只亮「项目」那一项 -->
+      <ActivityBar
+        v-model="activity"
+        :left-open="stageOpen"
+        :badges="{ scm: vcs.changeCount.value }"
+      />
 
+      <template v-if="s.doc.value">
         <!-- 嵌套两个官方 split-layout：外层分侧栏，内层分详情栏。 -->
         <!-- @ts-expect-error vscode-split-layout 是自定义元素 -->
         <vscode-split-layout
@@ -417,10 +466,20 @@ function onKeydown(event: KeyboardEvent) {
             <LocalePane v-else-if="activity === 'locales'" :project="project" :menu="menu" />
             <GlossaryPane v-else-if="activity === 'glossary'" ref="glossaryPane" :glossary="glossary" :menu="menu" />
             <SourceControlPane
-              v-else
+              v-else-if="activity === 'scm'"
               :vcs="vcs"
               :menu="menu"
               :document="s.archive.value"
+            />
+            <ProjectPane
+              v-else
+              :recents="s.recents.value"
+              :current="currentProject"
+              @open="project.openArchive"
+              @create="project.openArchive"
+              @pick="project.openPath"
+              @forget="project.forgetRecent"
+              @collapse="prefs.left = false; savePrefs()"
             />
           </div>
 
@@ -449,17 +508,6 @@ function onKeydown(event: KeyboardEvent) {
           </div>
         </vscode-split-layout>
       </template>
-      <WelcomePane
-      v-else
-      :variant="prefs.startVariant"
-      :recents="s.recents.value"
-      :current="null"
-      :dropping="dropping"
-      @open="project.openArchive"
-      @create="project.openArchive"
-      @pick="project.openPath"
-      @forget="project.forgetRecent"
-    />
     </div>
 
     <ContextMenu :menu="menu" />
@@ -477,6 +525,23 @@ function onKeydown(event: KeyboardEvent) {
       @confirm="runOverwriteAll"
     />
     <StatusBar :project="project" />
+    </template>
+
+    <WelcomeWindow
+      v-else
+      :recents="s.recents.value"
+      :dropping="dropping"
+      :version="info?.version"
+      @open="project.openArchive"
+      @create="project.openArchive"
+      @pick="project.openPath"
+      @forget="project.forgetRecent"
+      @settings="mtSettingsOpen = true"
+      @help="helpOpen = true"
+      @minimize="winAction('minimize')"
+      @maximize="winAction('toggleMaximize')"
+      @close="winAction('close')"
+    />
   </div>
 </template>
 
@@ -488,6 +553,24 @@ function onKeydown(event: KeyboardEvent) {
 .split { display: block; height: 100%; min-width: 0; }
 .split-main { flex: 1; }
 .split-detail { width: 100%; }
+
+/* 空舞台：左边是项目工具窗，右边是说明 */
+.welcome-rail { flex: 0 0 300px; width: 300px; border-right: 1px solid var(--border-subtle); }
+.welcome-rail.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }
+
+.empty-stage { flex: 1; align-items: center; justify-content: center; background: var(--bg-editor); }
+.empty-stage .hint { max-width: 620px; padding: var(--s8); }
+.empty-stage h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; margin-bottom: var(--s5); }
+.empty-stage h1 em { font-style: normal; color: var(--accent-text); }
+.empty-stage p { color: var(--text-muted); font-size: var(--fs-md); line-height: 1.75; margin-bottom: var(--s5); }
+.empty-stage p.dim { color: var(--text-faint); font-size: var(--fs-sm); margin: 0; }
+.empty-stage code {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r1);
+  padding: 1px 5px;
+  color: var(--text);
+}
 
 .pane { height: 100%; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .pane > * { flex: 1; min-height: 0; }

@@ -13,6 +13,9 @@
     "windows": [
       {
         "title": "SC2Translater — 星际争霸 II 汉化工具",
+        "decorations": false,
+        "minWidth": 900,
+        "minHeight": 600,
         "width": 1180,
         "height": 820,
         "minWidth": 940,
