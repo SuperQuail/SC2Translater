@@ -1,76 +1,79 @@
-/* 设计令牌。
+/* 应用级令牌。
  *
- * 色阶直接采用 Radix Colors 的 dark 系列（12 步语义色阶），并按 Radix 的用法模型映射：
- *   1-2 应用/面板底色   3-5 组件底色（含 hover/active）  6-8 边框（含 hover/focus ring）
- *   9-10 实心色（按钮） 11-12 文本（11 低对比、12 高对比）
- * 这样对比度是有依据的，不靠肉眼调。
+ * 底座全部来自 VS Code 官方 Dark Modern 主题（vscode-theme.css 里的 --vscode-*），
+ * 这里只做语义别名 —— 组件里写 var(--bg-panel) 这类名字，改主题时不用动组件。
+ * VS Code 真的换肤时，只需要换 vscode-theme.css。
  */
 
 :root {
-  /* ---- 中性色（slate dark） ---- */
-  --slate-1: #111113;
-  --slate-2: #18191b;
-  --slate-3: #212225;
-  --slate-4: #272a2d;
-  --slate-5: #2e3135;
-  --slate-6: #363a3f;
-  --slate-7: #43484e;
-  --slate-8: #5a6169;
-  --slate-9: #696e77;
-  --slate-10: #777b84;
-  --slate-11: #b0b4ba;
-  --slate-12: #edeef0;
+  /* ---- 分区底色：VS Code 每个区域都有自己的令牌，不能用一个通用色糊过去 ----
+   * activityBar / sideBar / titleBar / editorGroupHeader(tab 条) / editor / statusBar
+   * 在 Dark Modern 里分别是 #181818 / #181818 / #181818 / #181818 / #1F1F1F / #181818，
+   * 分隔靠的是各自的 border 令牌（#2B2B2B 一带），不是靠色差。 */
+  --bg-activitybar: var(--vscode-activityBar-background);
+  --fg-activitybar: var(--vscode-activityBar-foreground);
+  --fg-activitybar-inactive: var(--vscode-activityBar-inactiveForeground);
+  --activitybar-active-border: var(--vscode-activityBar-activeBorder);
+  --bg-sidebar: var(--vscode-sideBar-background);
+  --border-sidebar: var(--vscode-sideBar-border, #2b2b2b);
+  --bg-titlebar: var(--vscode-titleBar-activeBackground);
+  --border-titlebar: var(--vscode-titleBar-border, #2b2b2b);
+  --bg-tabbar: var(--vscode-editorGroupHeader-tabsBackground);
+  --border-tabbar: var(--vscode-editorGroupHeader-tabsBorder, #2b2b2b);
+  --bg-editor: var(--vscode-editor-background);
+  --bg-statusbar: var(--vscode-statusBar-background);
+  --fg-statusbar: var(--vscode-statusBar-foreground);
+  --border-statusbar: var(--vscode-statusBar-border, #2b2b2b);
 
-  /* ---- 强调色（blue dark） ---- */
-  --blue-3: #0d2847;
-  --blue-4: #003362;
-  --blue-5: #004074;
-  --blue-6: #104d87;
-  --blue-7: #205d9e;
-  --blue-8: #2870bd;
-  --blue-9: #0090ff;
-  --blue-10: #3b9eff;
-  --blue-11: #70b8ff;
+  /* ---- 编辑器标签 ---- */
+  --tab-active-bg: var(--vscode-tab-activeBackground);
+  --tab-active-fg: var(--vscode-tab-activeForeground);
+  --tab-inactive-bg: var(--vscode-tab-inactiveBackground);
+  --tab-inactive-fg: var(--vscode-tab-inactiveForeground);
+  --tab-border: var(--vscode-tab-border);
+  --tab-active-border-top: var(--vscode-tab-activeBorderTop);
+  --tab-hover-bg: var(--vscode-tab-hoverBackground);
 
-  /* ---- 状态色 ---- */
-  --green-9: #30a46c;
-  --green-11: #3dd68c;
-  --amber-9: #ffc53d;
-  --amber-11: #ffca16;
-  --red-9: #e5484d;
-  --red-11: #ff9592;
+  /* ---- 列表（树、表格行都吃这套） ---- */
+  --list-hover: var(--vscode-list-hoverBackground);
+  --list-active-bg: var(--vscode-list-activeSelectionBackground);
+  --list-active-fg: var(--vscode-list-activeSelectionForeground);
+  --list-inactive-bg: var(--vscode-list-inactiveSelectionBackground);
+  --list-focus-outline: var(--vscode-list-focusOutline);
 
-  /* ---- 语义映射：底色 ---- */
-  --bg-app: var(--slate-1);
-  --bg-panel: var(--slate-2);
-  --bg-raised: var(--slate-3);
-  --bg-hover: var(--slate-4);
-  --bg-active: var(--slate-5);
-  --bg-inset: #0c0d0e;
-  --bg-selected: var(--blue-4);
+  /* ---- 底色：直接对齐 VS Code 的 editor / sideBar / input ---- */
+  --bg-app: var(--vscode-editor-background);
+  --bg-panel: var(--vscode-sideBar-background);
+  --bg-raised: var(--vscode-button-secondaryBackground);
+  --bg-hover: var(--vscode-list-hoverBackground);
+  --bg-active: var(--vscode-list-activeSelectionBackground);
+  --bg-selected: var(--vscode-list-activeSelectionBackground);
+  --bg-inset: var(--vscode-input-background);
+  --bg-widget: var(--vscode-editorWidget-background);
 
-  /* ---- 语义映射：边框 ---- */
-  --border-subtle: var(--slate-6);
-  --border: var(--slate-7);
-  --border-strong: var(--slate-8);
-  --ring: var(--blue-8);
+  /* ---- 边框 ---- */
+  --border-subtle: var(--vscode-panel-border, #2b2b2b);
+  --border: var(--vscode-widget-border);
+  --border-strong: var(--vscode-input-border, #3c3c3c);
+  --ring: var(--vscode-focusBorder);
 
-  /* ---- 语义映射：文本 ---- */
-  --text: var(--slate-12);
-  --text-muted: var(--slate-11);
-  --text-faint: var(--slate-9);
-  --text-on-solid: #ffffff;
+  /* ---- 文本 ---- */
+  --text: var(--vscode-foreground);
+  --text-muted: var(--vscode-descriptionForeground);
+  --text-faint: var(--vscode-disabledForeground);
+  --text-on-solid: var(--vscode-button-foreground);
 
-  /* ---- 语义映射：状态 ---- */
-  --accent: var(--blue-9);
-  --accent-hover: var(--blue-10);
-  --accent-text: var(--blue-11);
-  --ok: var(--green-9);
-  --ok-text: var(--green-11);
-  --warn: var(--amber-9);
-  --warn-text: var(--amber-11);
-  --err: var(--red-9);
-  --err-text: var(--red-11);
+  /* ---- 强调 / 状态 ---- */
+  --accent: var(--vscode-button-background);
+  --accent-hover: var(--vscode-button-hoverBackground);
+  --accent-text: var(--vscode-textLink-foreground);
+  --ok: var(--vscode-testing-iconPassed, #73c991);
+  --ok-text: var(--vscode-testing-iconPassed, #73c991);
+  --warn: var(--vscode-editorWarning-foreground);
+  --warn-text: var(--vscode-editorWarning-foreground);
+  --err: var(--vscode-errorForeground);
+  --err-text: var(--vscode-errorForeground);
+  --info: var(--vscode-textLink-foreground);
 
   /* ---- 间距（4px 基准） ---- */
   --s1: 2px;
@@ -83,13 +86,13 @@
   --s8: 24px;
   --s9: 32px;
 
-  /* ---- 圆角 ---- */
-  --r1: 3px;
-  --r2: 5px;
-  --r3: 8px;
-  --r4: 12px;
+  /* ---- 圆角：VS Code 基本是直角，只给菜单/浮层一点点 ---- */
+  --r1: 2px;
+  --r2: 2px;
+  --r3: 6px;
+  --r4: 8px;
 
-  /* ---- 字号 / 行高 ---- */
+  /* ---- 字号 / 行高：VS Code 用 13px 正文 ---- */
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
@@ -98,29 +101,28 @@
   --lh-tight: 1.25;
   --lh-normal: 1.5;
 
-  /* ---- 行高（表格密度） ---- */
-  --row-compact: 30px;
-  --row-standard: 36px;
-  --row-comfortable: 44px;
+  /* ---- 表格密度 ---- */
+  --row-compact: 22px;
+  --row-standard: 26px;
+  --row-comfortable: 32px;
 
   /* ---- 布局 ---- */
-  --h-titlebar: 52px;
-  --h-statusbar: 34px;
-  --w-side: 244px;
-  --w-detail: 336px;
+  --h-titlebar: 35px;
+  --h-statusbar: 22px;
+  --h-tabbar: 35px;
+  --w-activity: 48px;
 
   /* ---- 字体 ---- */
-  --font-ui: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, -apple-system, sans-serif;
-  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", Menlo, monospace;
+  --font-ui: "Segoe WPC", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
 
   /* ---- 阴影 ---- */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.45);
-  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.36);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.5);
 
-  /* ---- 动效 ---- */
-  --t-fast: 100ms ease;
-  --t-base: 160ms ease;
+  --t-fast: 80ms linear;
+  --t-base: 120ms ease-out;
 
   color-scheme: dark;
 }

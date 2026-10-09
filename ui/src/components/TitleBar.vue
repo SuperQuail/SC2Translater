@@ -1,247 +1,309 @@
 <script setup lang="ts">
-// 顶栏：归档 + 语言对 + 主操作。主操作按「先用得上的排前面」排列。
+// 顶栏：项目 + 语言对 + 主操作。控件全部用 VS Code 官方的 <vscode-button> / <vscode-single-select>。
 
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 
-import { baseName, formatBytes, isTauri } from "../api";
+import { baseName, formatBytes } from "../api";
 import type { AppInfo } from "../api/types";
+import type { ContextMenuApi } from "../composables/useContextMenu";
 import { COMMON_LOCALES } from "../composables/useProject";
 import type { Project } from "../composables/useProject";
+import Icon from "./Icon.vue";
 
-const props = defineProps<{ project: Project; info: AppInfo | null }>();
-const emit = defineEmits<{ (e: "fill"): void }>();
+const props = defineProps<{
+  project: Project;
+  info: AppInfo | null;
+  menu: ContextMenuApi;
+  leftOpen: boolean;
+  rightOpen: boolean;
+}>();
+const emit = defineEmits<{
+  (e: "fill"): void;
+  (e: "overwrite-all"): void;
+  (e: "help"): void;
+  (e: "toggle-left"): void;
+  (e: "toggle-right"): void;
+}>();
 
 const s = props.project.state;
-
-/** 语言代码不止官方那 12 个（实测有 zhCH / enGB / jaJP），所以给一个「自定义」出口。 */
 const CUSTOM = "__custom__";
-const sourceChoice = ref(s.source.value);
-const targetChoice = ref(s.target.value);
-const customSourceOpen = ref(false);
-const customTargetOpen = ref(false);
-const customSource = ref("");
-const customTarget = ref("");
 
-watch(s.source, (v) => { sourceChoice.value = COMMON_LOCALES.some((l) => l.code === v) ? v : CUSTOM; });
-watch(s.target, (v) => { targetChoice.value = COMMON_LOCALES.some((l) => l.code === v) ? v : CUSTOM; });
-
-function onSourceChoice() {
-  if (sourceChoice.value === CUSTOM) {
-    customSourceOpen.value = true;
-    return;
-  }
-  void props.project.changeLanguages(sourceChoice.value, s.target.value);
-}
-
-function onTargetChoice() {
-  if (targetChoice.value === CUSTOM) {
-    customTargetOpen.value = true;
-    return;
-  }
-  void props.project.changeLanguages(s.source.value, targetChoice.value);
-}
-
-function applyCustom(which: "source" | "target") {
-  const raw = (which === "source" ? customSource.value : customTarget.value).trim();
-  if (!/^[A-Za-z]{2,4}$/.test(raw)) return;
-  if (which === "source") {
-    customSourceOpen.value = false;
-    customSource.value = "";
-    void props.project.changeLanguages(raw, s.target.value);
-  } else {
-    customTargetOpen.value = false;
-    customTarget.value = "";
-    void props.project.changeLanguages(s.source.value, raw);
-  }
-}
-
-const archiveLabel = computed(() => (s.archive.value ? baseName(s.archive.value) : "未打开归档"));
-const archiveMeta = computed(() =>
-  props.project.state.info.value ? formatBytes(props.project.state.info.value.size) : "",
+const sourceChoice = computed(() =>
+  COMMON_LOCALES.some((l) => l.code === s.source.value) ? s.source.value : CUSTOM,
 );
+const targetChoice = computed(() =>
+  COMMON_LOCALES.some((l) => l.code === s.target.value) ? s.target.value : CUSTOM,
+);
+
+const archiveLabel = computed(() =>
+  s.project.value.files.length
+    ? s.project.value.name
+    : s.archive.value
+      ? baseName(s.archive.value)
+      : "未打开文件",
+);
+
+const fileMeta = computed(() => {
+  const st = s.info.value;
+  return st ? formatBytes(st.size) : "";
+});
+
+function readSelect(event: Event): string {
+  return String((event.target as unknown as { value: string }).value ?? "");
+}
+
+/** 改语言对时同时写回当前项目文件 —— 每个文件可以有自己的语言对。 */
+function applyLanguages(nextSource: string, nextTarget: string) {
+  const file = s.project.value.files[s.project.value.active];
+  if (file) {
+    file.source = nextSource;
+    file.target = nextTarget;
+  }
+  void props.project.changeLanguages(nextSource, nextTarget);
+}
+
+function onSourceChange(event: Event) {
+  const v = readSelect(event);
+  if (v === CUSTOM) return;
+  applyLanguages(v, s.target.value);
+}
+
+function onTargetChange(event: Event) {
+  const v = readSelect(event);
+  if (v === CUSTOM) return;
+  applyLanguages(s.source.value, v);
+}
+
+function onProjectMenu(event: MouseEvent) {
+  props.menu.openMenu(
+    event,
+    [
+      { id: "new", label: "新建项目", hint: "Ctrl+N" },
+      { id: "open", label: "打开项目…", hint: "Ctrl+O" },
+      { id: "save", label: "保存项目", hint: "Ctrl+S" },
+      { id: "saveas", label: "另存为…", hint: "Ctrl+Shift+S", separator: true },
+      { id: "addfiles", label: "添加文件…", hint: "Ctrl+Shift+O", separator: true },
+      { id: "rename", label: "重命名项目" },
+    ],
+    (id) => {
+      if (id === "new") props.project.newProject();
+      else if (id === "open") void props.project.openProjectDialog();
+      else if (id === "save") void props.project.saveProject(false);
+      else if (id === "saveas") void props.project.saveProject(true);
+      else if (id === "addfiles") void props.project.addFiles();
+      else if (id === "rename") {
+        const next = window.prompt("项目名称", s.project.value.name);
+        if (next !== null) props.project.renameProject(next);
+      }
+    },
+  );
+}
+
+function onFillMenu(event: MouseEvent) {
+  props.menu.openMenu(
+    event,
+    [
+      { id: "dialog", label: "补全默认语言…（可选范围）", hint: "Ctrl+Shift+F" },
+      { id: "seed", label: "一键兜底：只补当前目标语言" },
+    ],
+    (id) => {
+      if (id === "dialog") emit("fill");
+      else void props.project.seedMissing();
+    },
+  );
+}
+
+function onMore(event: MouseEvent) {
+  props.menu.openMenu(
+    event,
+    [
+      { id: "verify", label: "容器自检", hint: "F5" },
+      { id: "reveal", label: "打开产物所在目录", separator: true },
+      { id: "help", label: "快捷键与右键菜单", hint: "F1", separator: true },
+    ],
+    (id) => {
+      if (id === "verify") void props.project.runVerify();
+      else if (id === "reveal") void props.project.revealOutput();
+      else if (id === "help") emit("help");
+    },
+  );
+}
+
+watch([() => s.source.value, () => s.target.value], () => void 0);
 </script>
 
 <template>
   <header class="titlebar">
-    <div class="brand">
-      <span class="mark">SC2</span>
-      <div class="brand-text">
-        <div class="name">SC2Translater</div>
-        <div class="tag">地图汉化 · 翻译键提取与回填</div>
-      </div>
-      <span v-if="info" class="version">v{{ info.version }}</span>
-      <span v-if="!isTauri" class="badge-demo">演示数据</span>
+    <span class="mark">SC2</span>
+
+    <button class="project-name" title="点开项目菜单" @click="onProjectMenu">
+      {{ archiveLabel }}
+      <span v-if="s.projectDirty.value" class="dirty" title="有未保存的项目改动">●</span>
+      <Icon name="chevron-down" :size="12" />
+    </button>
+
+    <span v-if="s.project.value.files.length" class="counts">
+      {{ s.project.value.files.length }} 个文件 · 待翻译
+      <b>{{ props.project.projectTotals.value.todo }}</b>
+    </span>
+
+    <span class="spacer"></span>
+
+    <div v-if="s.doc.value" class="langs">
+      <!-- @ts-expect-error vscode-single-select 是自定义元素 -->
+      <vscode-single-select
+        class="lang"
+        :value="sourceChoice"
+        title="原文语言"
+        @change="onSourceChange"
+      >
+        <vscode-option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</vscode-option>
+      </vscode-single-select>
+      <Icon name="chevron" :size="12" />
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-single-select
+        class="lang"
+        :value="targetChoice"
+        title="目标语言"
+        @change="onTargetChange"
+      >
+        <vscode-option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</vscode-option>
+      </vscode-single-select>
+      <span v-if="fileMeta" class="meta">{{ fileMeta }}</span>
     </div>
 
-    <div class="center">
-      <button class="archive-chip" :disabled="s.busy.value" @click="props.project.openArchive">
-        <span class="dot" :class="{ ready: Boolean(s.archive.value) }"></span>
-        <span class="archive-name">{{ archiveLabel }}</span>
-        <span v-if="archiveMeta" class="archive-meta">{{ archiveMeta }}</span>
-        <span class="archive-action">{{ s.archive.value ? "更换" : "打开" }}</span>
-      </button>
+    <span class="spacer"></span>
 
-      <div class="langs">
-        <label class="lang">
-          <span class="lang-label">原文</span>
-          <select v-model="sourceChoice" :disabled="s.busy.value" @change="onSourceChoice">
-            <option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</option>
-            <option :value="CUSTOM">自定义…</option>
-          </select>
-        </label>
-        <span class="arrow">→</span>
-        <label class="lang">
-          <span class="lang-label">目标</span>
-          <select v-model="targetChoice" :disabled="s.busy.value" @change="onTargetChoice">
-            <option v-for="l in COMMON_LOCALES" :key="l.code" :value="l.code">{{ l.label }} · {{ l.code }}</option>
-            <option :value="CUSTOM">自定义…</option>
-          </select>
-        </label>
-      </div>
+    <div class="panels">
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon-only
+        icon="layout-sidebar-left"
+        :title="'收起/展开左栏（Ctrl+B）'"
+        @click="emit('toggle-left')"
+      ></vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon-only
+        icon="layout-sidebar-right"
+        title="收起/展开右栏（Ctrl+J）"
+        @click="emit('toggle-right')"
+      ></vscode-button>
     </div>
 
     <div class="actions">
-      <button :disabled="!s.doc.value || s.busy.value" title="导入外部翻译 JSON，按 (字符串表, 键) 合并译文" @click="props.project.importJson">
-        导入译文
-      </button>
-      <button :disabled="!s.doc.value || s.busy.value" title="导出翻译键为 JSON（Ctrl+S）" @click="props.project.exportJson">
-        导出 JSON
-      </button>
-      <button
-        class="primary"
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon="arrow-down"
+        :disabled="!s.doc.value || s.busy.value"
+        title="导入外部翻译 JSON（Ctrl+I）"
+        @click="props.project.importJson"
+      >导入译文</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon="export"
+        :disabled="!s.doc.value || s.busy.value"
+        title="导出翻译键 JSON（Ctrl+E）"
+        @click="props.project.exportJson"
+      >导出 JSON</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        icon="save"
         :disabled="!s.doc.value || s.busy.value"
         title="把译文写回地图（Ctrl+Enter）"
         @click="props.project.applyToArchive"
-      >
-        写回地图
-      </button>
-      <button
+      >写回地图</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon="globe"
         :disabled="!s.doc.value || s.busy.value"
-        title="没有语言文件的语言，一次全部补上"
-        @click="emit('fill')"
-      >
-        补全语言
-      </button>
-      <button :disabled="!s.doc.value || s.busy.value" title="只用原文补当前目标语言" @click="props.project.seedMissing">
-        一键兜底
-      </button>
-      <button class="ghost" :disabled="s.busy.value" title="容器自检" @click="props.project.runVerify">自检</button>
-    </div>
-
-    <div v-if="customSourceOpen || customTargetOpen" class="custom-pop">
-      <h3>{{ customSourceOpen ? "自定义原文语言代码" : "自定义目标语言代码" }}</h3>
-      <input
-        v-if="customSourceOpen"
-        v-model="customSource"
-        type="text"
-        placeholder="如 zhCH"
-        autofocus
-        @keyup.enter="applyCustom('source')"
-        @keyup.esc="customSourceOpen = false"
-      />
-      <input
-        v-else
-        v-model="customTarget"
-        type="text"
-        placeholder="如 jaJP"
-        autofocus
-        @keyup.enter="applyCustom('target')"
-        @keyup.esc="customTargetOpen = false"
-      />
-      <p class="hint">2~4 个字母。归档里实测出现过 enCN / enGB / enSG / enTW / jaJP / zhCH。</p>
-      <div class="pop-actions">
-        <button @click="customSourceOpen = false; customTargetOpen = false">取消</button>
-        <button class="primary" @click="applyCustom(customSourceOpen ? 'source' : 'target')">确定</button>
-      </div>
+        title="补全语言（Ctrl+Shift+F）"
+        @click="onFillMenu"
+      >补全语言</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon="wand"
+        class="overwrite"
+        :disabled="!s.doc.value || s.busy.value"
+        title="一键全覆盖：用原文覆盖所有语言的每一个键（含已有译文）"
+        @click="emit('overwrite-all')"
+      >一键全覆盖</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon-only
+        icon="ellipsis"
+        title="更多"
+        @click="onMore"
+      ></vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button
+        secondary
+        icon-only
+        icon="question"
+        title="快捷键（F1）"
+        @click="emit('help')"
+      ></vscode-button>
     </div>
   </header>
 </template>
 
 <style scoped>
 .titlebar {
-  position: relative;
   height: var(--h-titlebar);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: var(--s6);
-  padding: 0 var(--s5);
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border-subtle);
+  gap: var(--s4);
+  padding: 0 var(--s4) 0 var(--s3);
+  background: var(--bg-titlebar);
+  border-bottom: 1px solid var(--border-titlebar);
 }
-
-.brand { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
 
 .mark {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r2);
-  background: linear-gradient(160deg, var(--blue-9), var(--blue-7));
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r1);
+  background: var(--accent);
   color: #fff;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.02em;
 }
 
-.brand-text { min-width: 0; }
-.name { font-size: var(--fs-md); font-weight: 600; letter-spacing: -0.01em; }
-.tag { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.2; }
-
-.version { font-size: var(--fs-xs); color: var(--text-faint); }
-
-.badge-demo {
-  font-size: var(--fs-xs);
-  padding: 1px var(--s3);
-  border-radius: 999px;
-  border: 1px solid var(--amber-9);
-  color: var(--amber-11);
-}
-
-.center { display: flex; align-items: center; gap: var(--s5); flex: 1; min-width: 0; }
-
-.archive-chip {
-  max-width: 340px;
-  height: 30px;
+.project-name {
+  display: inline-flex;
+  align-items: center;
   gap: var(--s3);
-  background: var(--bg-raised);
-  border-color: var(--border-subtle);
+  height: 24px;
+  padding: 0 var(--s3);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  max-width: 300px;
 }
+.project-name:hover { background: var(--bg-hover); }
 
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--slate-7); flex: 0 0 auto; }
-.dot.ready { background: var(--ok); }
+.dirty { color: var(--warn-text); font-size: 10px; }
 
-.archive-name { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.archive-meta { font-size: var(--fs-xs); color: var(--text-faint); }
-.archive-action { font-size: var(--fs-xs); color: var(--accent-text); }
+.counts { font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; }
+.counts b { color: var(--warn-text); font-variant-numeric: tabular-nums; }
+
+.spacer { flex: 1; }
 
 .langs { display: flex; align-items: center; gap: var(--s3); }
-.lang { display: flex; align-items: center; gap: var(--s3); }
-.lang-label { font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; }
-.lang select { width: auto; height: 28px; font-size: var(--fs-sm); padding: 0 var(--s4); }
-.arrow { color: var(--text-faint); font-size: var(--fs-sm); }
+.lang { width: 168px; }
+.meta { font-size: var(--fs-xs); color: var(--text-faint); }
 
-.actions { display: flex; align-items: center; gap: var(--s3); }
+.panels, .actions { display: flex; align-items: center; gap: var(--s2); }
 
-.custom-pop {
-  position: absolute;
-  top: calc(var(--h-titlebar) + var(--s2));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 320px;
-  padding: var(--s5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-  background: var(--slate-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r3);
-  box-shadow: var(--shadow-pop);
-  z-index: 40;
-}
-
-.custom-pop h3 { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); color: var(--text); }
-.hint { font-size: var(--fs-xs); color: var(--text-faint); margin: 0; }
-.pop-actions { display: flex; justify-content: flex-end; gap: var(--s3); }
+/* 「一键全覆盖」是破坏性操作，描边带点警示色 */
+.overwrite::part(control) { border-color: var(--warn); }
 </style>

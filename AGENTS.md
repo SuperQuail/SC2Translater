@@ -38,6 +38,7 @@
 | 序列化 | `serde` / `serde_json` |
 | 压缩 | `flate2` / `bzip2` / `lzma-rs`（可关掉 `bzip2-backend` feature） |
 | GUI | Tauri 2 + Vue 3 + TypeScript + Vite，pnpm 包管理 |
+| GUI 控件 | **VS Code 官方控件**：`@vscode-elements/elements`（MIT，38 个 Web Components）+ `@vscode/codicons`（官方图标字体）+ VS Code Dark Modern 主题令牌 |
 | Python 原型 | uv 管理，放在 `python/` 子目录 |
 
 ```
@@ -101,9 +102,10 @@ cargo clippy --all-targets       # 必须无警告
 
 # GUI
 pnpm -C ui install
+python scripts/gen-vscode-theme.py   # 重新生成 VS Code 官方主题令牌（只在换主题色板时需要）
 pnpm -C ui dev                   # 浏览器调试（自动演示模式）
 pnpm -C ui build                 # 生成 ui/dist
-cargo build -p sc2trans-gui --features custom-protocol   # 生产壳（必须带这个 feature！）
+cargo build --release            # 桌面壳（custom-protocol 已是默认特性，不用再带 --features）
 pnpm -C ui test                  # vitest
 
 # Python 原型（对照实现）
@@ -118,8 +120,9 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 
 ## 6. 硬性约束（踩过的坑）
 
-1. **GUI 生产构建必须带 `--features custom-protocol`**。不带的话 release 版也会去连
-   `devUrl`，在没有 dev server 的机器上就是一片空白窗口（已实测）。
+1. **GUI 必须内嵌前端**。custom-protocol 已经是**默认特性**，所以 `cargo build --release` 直接就能用；
+   需要连 dev server 调试时显式关掉：`cargo run --no-default-features -p sc2trans-gui`。
+   验证方法：在 exe 里搜一下当前 dist 的 `assets/index-*.js` 名字，搜不到就是没内嵌。
 2. **别让 bin 与 lib 的输出重名**。`sc2trans-gui` 会被 cargo 归一成 `sc2trans_gui`，
    与 lib 的 pdb 撞车；所以 bin 显式命名为 `SC2Translater`。
 3. **改字符串表必须逐字节保真**。写入前先跑 `verify`，它有一项 `string_tables_roundtrip_exact`。
@@ -132,7 +135,18 @@ python ../SC2Diff/tools/editor_accept.py <原件.SC2Map> <产物.SC2Map>   # 必
 8. **改了写侧就一定要重跑编辑器验收**。容器层的自检全绿、StormLib 也认，都不代表 SC2 编辑器会接受
    —— 历史上就差一个 `dwRawChunkSize` 字段。见 `docs/design/验收记录.md`。
 9. **Vue 里别把 ref 塞进 `reactive()`**：reactive 会深层解包 ref，
-   于是 `s.archive` 直接变成值、`s.archive.value` 变成非法访问。用普通对象 + 显式 `.value`。
+   于是 s.archive 直接变成值、s.archive.value 变成非法访问。用普通对象 + 显式 .value。
+10. **UI 一律用 VS Code 官方控件，不要自己画**。按钮 = vscode-button、输入 = vscode-textfield、
+    下拉 = vscode-single-select、勾选 = vscode-checkbox、单选 = vscode-radio-group、
+    标签页 = vscode-tabs、树 = vscode-tree、右键菜单 = vscode-context-menu、
+    分隔栏 = vscode-split-layout、图标 = vscode-icon。自定义元素在 Vue 模板里要加
+    @ts-expect-error 注释，否则 vue-tsc 会当成未知标签报错。
+11. **index.html 里那个 id 为 vscode-codicon-stylesheet 的 link 不能删**。vscode-icon 要在
+    shadow root 里再用一次字体表，靠的就是这个固定 id（VS Code 的 webview 宿主就是这么注入的）。
+    删掉之后所有图标会变成豆腐块或汉字兜底字形。
+12. **不要用「补默认值」的方式覆盖官方主题令牌**。scripts/gen-vscode-theme.py 的补缺表现在会
+    跳过官方已有的键 —— 早先没有跳过，把 button-secondaryBackground 从透明的 #00000000 盖成了
+    灰底，secondary 按钮立刻就不是 VS Code 的样子了。
 
 ---
 

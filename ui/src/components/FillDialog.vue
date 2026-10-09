@@ -25,6 +25,14 @@ const candidates = computed(() => COMMON_LOCALES.filter((l) => l.code !== s.sour
 
 const selectedCount = computed(() => (scope.value === "all" ? candidates.value.length : picked.value.size));
 
+function readValue(event: Event): string {
+  return String((event.target as unknown as { value: string }).value ?? "");
+}
+
+function readChecked(event: Event): boolean {
+  return Boolean((event.target as unknown as { checked: boolean }).checked);
+}
+
 function toggle(code: string) {
   const next = new Set(picked.value);
   if (next.has(code)) next.delete(code);
@@ -67,14 +75,13 @@ async function run() {
 
       <section>
         <h3>范围</h3>
-        <label class="radio">
-          <input v-model="scope" type="radio" value="all" />
-          <span>全部语言<span class="dim">（{{ candidates.length }} 种，含归档里出现过的非官方代码）</span></span>
-        </label>
-        <label class="radio">
-          <input v-model="scope" type="radio" value="explicit" />
-          <span>指定语言</span>
-        </label>
+        <!-- @ts-expect-error vscode-radio-group 是自定义元素 -->
+        <vscode-radio-group :value="scope" @change="scope = readValue($event) as 'all' | 'explicit'">
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-radio value="all">全部语言（{{ candidates.length }} 种，含归档里出现过的非官方代码）</vscode-radio>
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-radio value="explicit">指定语言</vscode-radio>
+        </vscode-radio-group>
 
         <div v-if="scope === 'explicit'" class="picks">
           <div class="pick-actions">
@@ -83,27 +90,34 @@ async function run() {
             <button class="mini ghost" @click="picked = new Set()">清空</button>
           </div>
           <div class="grid">
-            <label v-for="l in candidates" :key="l.code" class="pick" :class="{ on: picked.has(l.code) }">
-              <input type="checkbox" :checked="picked.has(l.code)" @change="toggle(l.code)" />
-              <span class="code mono">{{ l.code }}</span>
-              <span class="name">{{ l.label }}</span>
-              <span class="state" :class="{ has: present.has(l.code) }">{{ present.has(l.code) ? "已有" : "缺失" }}</span>
-            </label>
+            <!-- @ts-expect-error vscode-checkbox 是自定义元素 -->
+            <vscode-checkbox
+              v-for="l in candidates"
+              :key="l.code"
+              :checked="picked.has(l.code)"
+              @change="toggle(l.code)"
+            >
+              {{ l.code }} · {{ l.label }} · {{ present.has(l.code) ? "已有" : "缺失" }}
+            </vscode-checkbox>
           </div>
         </div>
       </section>
 
       <section>
-        <label class="check">
-          <input v-model="onlyMissing" type="checkbox" />
-          <span>不覆盖已有译文<span class="dim">（推荐：只补缺的键）</span></span>
-        </label>
+        <!-- @ts-expect-error 自定义元素 -->
+        <vscode-checkbox
+          :checked="onlyMissing"
+          label="不覆盖已有译文（推荐：只补缺的键）"
+          @change="onlyMissing = readChecked($event)"
+        ></vscode-checkbox>
       </section>
 
       <footer>
         <span class="count">将处理 {{ selectedCount }} 种语言</span>
-        <button @click="emit('close')">取消</button>
-        <button class="primary" :disabled="selectedCount === 0 || s.busy.value" @click="run">选择输出并执行</button>
+        <!-- @ts-expect-error 自定义元素 -->
+        <vscode-button secondary @click="emit('close')">取消</vscode-button>
+        <!-- @ts-expect-error 自定义元素 -->
+        <vscode-button :disabled="selectedCount === 0 || s.busy.value" @click="run">选择输出并执行</vscode-button>
       </footer>
     </div>
   </div>

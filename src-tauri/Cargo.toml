@@ -19,10 +19,14 @@ name = "sc2trans_gui"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# 生产构建**必须**开这个：开了才会把 ui/dist 内嵌进二进制。
+# 开了才会把 ui/dist 内嵌进二进制；不开的话会去连 devUrl（开发服务器），
+# 在没有 dev server 的机器上就是一片空白窗口。
 #
-# 不开的话 release 版也会去连 devUrl（开发服务器），在没有 dev server 的机器上
-# 就是一片 ERR_CONNECTION_REFUSED。这个坑在参考项目里踩过一次，别再删。
+# **设成默认特性是刻意的**：这个项目不用 tauri-cli 构建（直接 cargo build --release），
+# 忘带 --features 就会静默产出一个打不开的 exe —— 这个坑踩过两次（第一次是参考项目，
+# 第二次是本项目自己跑 cargo build --release 忘了带）。默认开 = 不可能再忘。
+# 需要连 dev server 调试时用：cargo run --no-default-features -p sc2trans-gui
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [build-dependencies]

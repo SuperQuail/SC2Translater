@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SC2Translater — 星际争霸 II 汉化工具</title>
+    <!--
+      这一行不能删。<vscode-icon> 在 shadow root 里也要能用到 Codicons 字体，
+      而 Web 字体必须「页面 + 组件」各引入一次；组件是靠这个 **固定 id** 找到字体表的：
+        document.getElementById('vscode-codicon-stylesheet')
+      VS Code 的 webview 宿主导入的就是这个元素，桌面版由我们自己放。
+      字体文件放在 public/ 下，构建后原样进 dist。
+    -->
+    <link id="vscode-codicon-stylesheet" rel="stylesheet" href="/codicon.css" />
   </head>
   <body>
     <div id="app"></div>

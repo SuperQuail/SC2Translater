@@ -12,9 +12,10 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
-use tauri::command;
+use tauri::{Manager, command};
 
 use sc2trans_core::ops::{self, ApplyOptions};
+use sc2trans_core::project::{Project, RecentProjects};
 
 /// 把阻塞的重活丢到线程池，避免卡住 UI。
 async fn blocking<T, F>(f: F) -> Result<T, String>
@@ -25,6 +26,119 @@ where
     tauri::async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| format!("后台任务异常: {e}"))?
+}
+
+/// 应用数据目录：放最近项目列表。
+fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("取应用数据目录失败: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("建应用数据目录失败: {e}"))?;
+    Ok(dir)
+}
+
+/// 最近打开的项目（已过滤掉磁盘上不存在的）。
+#[command]
+async fn recent_projects(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let mut recent = RecentProjects::load(&dir);
+        recent.prune();
+        let _ = recent.save(&dir);
+        serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 从最近列表里移除一个项目。
+#[command]
+async fn forget_project(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let mut recent = RecentProjects::load(&dir);
+        recent.forget(&path);
+        recent.save(&dir).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 选择项目文件要保存到哪里。
+#[command]
+async fn pick_project_save(default_name: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_title("保存项目")
+            .set_file_name(default_name)
+            .add_filter("SC2Translater 项目", &[sc2trans_core::project::PROJECT_EXT])
+            .save_file()
+            .map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// 选择一个已有项目文件。
+#[command]
+async fn pick_project_open() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("打开项目")
+            .add_filter("SC2Translater 项目", &[sc2trans_core::project::PROJECT_EXT])
+            .pick_file()
+            .map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// 一次选多个地图 / 模组加进项目。
+#[command]
+async fn pick_archives() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("添加地图 / 模组（可多选）")
+            .add_filter("星际争霸 II 文档", &["SC2Map", "SC2Mod", "sc2map", "sc2mod"])
+            .pick_files()
+            .map(|paths| paths.into_iter().map(|p| p.display().to_string()).collect())
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// 保存项目（写 JSON 文件 + 记入最近列表）。
+#[command]
+async fn save_project(app: tauri::AppHandle, path: String, project: Value) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let mut p: Project = serde_json::from_value(project).map_err(|e| format!("项目结构不对: {e}"))?;
+        let target = PathBuf::from(&path);
+        p.path = Some(target.display().to_string());
+        p.normalize();
+        p.save(&target).map_err(|e| format!("{e:#}"))?;
+        let mut recent = RecentProjects::load(&dir);
+        recent.touch(&p);
+        let _ = recent.save(&dir);
+        serde_json::to_value(&p).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 打开项目。
+#[command]
+async fn load_project(app: tauri::AppHandle, path: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        let p = Project::load(Path::new(&path)).map_err(|e| format!("{e:#}"))?;
+        let mut recent = RecentProjects::load(&dir);
+        recent.touch(&p);
+        let _ = recent.save(&dir);
+        serde_json::to_value(&p).map_err(|e| format!("{e:#}"))
+    })
+    .await
 }
 
 #[command]
@@ -319,6 +433,13 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             app_info,
+            recent_projects,
+            forget_project,
+            pick_project_save,
+            pick_project_open,
+            pick_archives,
+            save_project,
+            load_project,
             pick_archive,
             pick_json_save,
             pick_json_open,

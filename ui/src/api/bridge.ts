@@ -166,6 +166,37 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
       return { name: "SC2Translater", version: "0.1.0", tool: "sc2trans 0.1.0 (demo)", schema: "sc2trans.keys.v1" } satisfies AppInfo;
     case "pick_archive":
       return DEMO_ARCHIVE;
+    case "pick_archives":
+      return [DEMO_ARCHIVE, DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), DEMO_ARCHIVE.replace("Stukov2", "ZergX03")];
+    case "recent_projects":
+      return {
+        items: [
+          { path: "D:/示例/斯托科夫战役.sc2transproj", name: "斯托科夫战役", opened_at: "2026-10-09T00:00:00Z", files: 3 },
+          { path: "D:/示例/星际枢纽汉化.sc2transproj", name: "星际枢纽汉化", opened_at: "2026-10-08T00:00:00Z", files: 12 },
+        ],
+      };
+    case "forget_project":
+      return null;
+    case "pick_project_save":
+      return "D:/示例/未命名项目.sc2transproj";
+    case "pick_project_open":
+      return "D:/示例/斯托科夫战役.sc2transproj";
+    case "save_project":
+      return { ...(args?.project as object), path: args?.path };
+    case "load_project":
+      return {
+        format: 1,
+        name: "斯托科夫战役",
+        files: [
+          { path: DEMO_ARCHIVE, label: "Stukov2 关卡", source: "enUS", target: "zhCN", stats: { entries: 677, missing: 404, identical: 0, translated: 273, locales_present: 1, size: 902586, scanned_at: "2026-10-09T00:00:00Z" } },
+          { path: DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), label: "Stukov3 关卡", source: "enUS", target: "zhCN", stats: { entries: 512, missing: 512, identical: 0, translated: 0, locales_present: 1, size: 810240, scanned_at: "2026-10-09T00:00:00Z" } },
+          { path: DEMO_ARCHIVE.replace("Stukov2", "ZergX03"), label: "ZergX03", source: "enUS", target: "zhTW", stats: { entries: 288, missing: 40, identical: 8, translated: 240, locales_present: 2, size: 1261142, scanned_at: "2026-10-09T00:00:00Z" } },
+        ],
+        active: 0,
+        created_at: "2026-10-08T00:00:00Z",
+        updated_at: "2026-10-09T00:00:00Z",
+        path: "D:/示例/斯托科夫战役.sc2transproj",
+      };
     case "pick_json_save":
       return "D:/示例/Stukov2." + target + ".keys.json";
     case "pick_json_open":

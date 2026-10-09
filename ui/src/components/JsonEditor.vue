@@ -149,13 +149,18 @@ async function copyAll() {
 <template>
   <section class="json">
     <div class="bar">
-      <button class="mini" @click="format">格式化</button>
-      <button class="mini" @click="sortByKey">按 key 排序</button>
-      <button class="mini" @click="reload">从表格重新载入</button>
-      <button class="mini" @click="copyAll">复制</button>
+      <!-- @ts-expect-error vscode-button 是自定义元素 -->
+      <vscode-button secondary icon="wand" @click="format">格式化</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button secondary icon="list-ordered" @click="sortByKey">按 key 排序</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button secondary icon="refresh" @click="reload">重新载入</vscode-button>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button secondary icon="copy" @click="copyAll">复制</vscode-button>
       <span class="grow"></span>
-      <span class="hint">这就是 sc2trans.keys.v1；导出的 JSON 与本视图结构一致</span>
-      <button class="primary mini" :disabled="Boolean(error)" @click="applyToTable">应用到表格</button>
+      <span class="hint">sc2trans.keys.v1</span>
+      <!-- @ts-expect-error 自定义元素 -->
+      <vscode-button icon="check" :disabled="Boolean(error)" @click="applyToTable">应用到表格</vscode-button>
     </div>
 
     <div v-if="error" class="alert err">JSON 解析失败：{{ error }}</div>
@@ -173,7 +178,7 @@ async function copyAll() {
 </template>
 
 <style scoped>
-.json { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-app); }
+.json { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-editor); }
 
 .bar {
   display: flex;

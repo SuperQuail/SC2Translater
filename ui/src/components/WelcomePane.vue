@@ -42,7 +42,8 @@ defineEmits<{ (e: "open"): void }>();
       </div>
 
       <div class="cta">
-        <button class="primary big" @click="$emit('open')">打开地图 / 模组</button>
+        <!-- @ts-expect-error vscode-button 是自定义元素 -->
+        <vscode-button icon="folder-opened" @click="$emit('open')">打开地图 / 模组</vscode-button>
         <span v-if="isTauri" class="dropHint">也可以把文件直接拖进来</span>
       </div>
     </div>
@@ -110,6 +111,5 @@ h1 em { font-style: normal; color: var(--accent-text); }
 .step span { color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.65; }
 
 .cta { display: flex; align-items: center; gap: var(--s5); }
-.big { height: 38px; padding: 0 var(--s7); font-size: var(--fs-lg); }
 .dropHint { font-size: var(--fs-sm); color: var(--text-faint); }
 </style>

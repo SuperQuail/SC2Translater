@@ -6,7 +6,29 @@
 import { computed, ref, shallowRef } from "vue";
 
 import { api, formatCoverage, markupTokens } from "../api";
-import type { ApplyResult, AuditReport, Entry, InspectReport, TranslationDocument, VerifyReport } from "../api/types";
+import type {
+  ApplyResult,
+  AuditReport,
+  Entry,
+  InspectReport,
+  Project as ProjectModel,
+  ProjectFile,
+  RecentEntry,
+  TranslationDocument,
+  VerifyReport,
+} from "../api/types";
+
+/** 新建一个空项目。 */
+function emptyProject(name = "未命名项目"): ProjectModel {
+  const now = new Date().toISOString();
+  return { format: 1, name, files: [], active: 0, created_at: now, updated_at: now, path: null };
+}
+
+/** 从路径取一个好看的标签。 */
+function labelFromPath(path: string): string {
+  const base = path.split(/[\\/]/).pop() ?? path;
+  return base.replace(/\.[^.]+$/, "");
+}
 
 /** 常见语言，供下拉框使用；也允许手填（归档里实测出现过 zhCH / enGB 等）。 */
 export const COMMON_LOCALES = [
@@ -60,7 +82,34 @@ export function useProject() {
   const verifyReport = shallowRef<VerifyReport | null>(null);
   const lastExport = ref<string>("");
 
+  // ---- 项目 ----
+  const project = ref<ProjectModel>(emptyProject());
+  const projectPath = ref<string | null>(null);
+  const projectDirty = ref(false);
+  const recents = ref<RecentEntry[]>([]);
+
   const hasArchive = computed(() => Boolean(doc.value));
+  const hasProject = computed(() => project.value.files.length > 0);
+
+  /** 项目整体的待翻译量与完成度（把每个文件的缓存统计加起来）。 */
+  const projectTotals = computed(() => {
+    let entries = 0;
+    let todo = 0;
+    let translated = 0;
+    for (const f of project.value.files) {
+      if (!f.stats) continue;
+      entries += f.stats.entries;
+      todo += f.stats.missing + f.stats.identical;
+      translated += f.stats.translated;
+    }
+    const percent = entries === 0 ? 0 : Math.round(((entries - todo) / entries) * 1000) / 10;
+    return { entries, todo, translated, percent };
+  });
+
+  function markProjectDirty() {
+    projectDirty.value = true;
+    project.value.updated_at = new Date().toISOString();
+  }
 
   // ------------------------------------------------------------------ 日志
   function log(message: string) {
@@ -183,10 +232,36 @@ export function useProject() {
       selected.value = filtered.value[0] ? entryId(filtered.value[0]) : null;
       result.value = null;
       verifyReport.value = null;
+      // 把统计写回项目文件条目（文件列表与项目总进度都读它）
+      syncActiveStats(loaded, path);
       log(
         "载入 " + loaded.stats.entries + " 个键；" + (loaded.diagnosis?.message ?? ""),
       );
     });
+  }
+
+  /** 把一次扫描的结果写回当前项目条目。 */
+  function syncActiveStats(loaded: TranslationDocument, path: string) {
+    const idx = project.value.files.findIndex((f) => f.path === path);
+    if (idx < 0) return;
+    const byStatus = loaded.stats.by_status ?? {};
+    const want = (k: string) => byStatus[k] ?? 0;
+    const file: ProjectFile = {
+      ...project.value.files[idx],
+      source: source.value,
+      target: target.value,
+      stats: {
+        entries: loaded.stats.entries,
+        missing: want("missing"),
+        identical: want("identical"),
+        translated: want("translated"),
+        locales_present: loaded.stats.locales_present?.length ?? 0,
+        size: loaded.archive?.size ?? 0,
+        scanned_at: new Date().toISOString(),
+      },
+    };
+    project.value.files.splice(idx, 1, file);
+    markProjectDirty();
   }
 
   async function changeLanguages(nextSource: string, nextTarget: string) {
@@ -430,6 +505,161 @@ export function useProject() {
     selected.value = entryId(list[index]);
   }
 
+  // ------------------------------------------------------------------ 项目动作
+  async function refreshRecents() {
+    const recent = await guard("读取最近项目…", () => api.recentProjects());
+    if (recent) recents.value = recent.items;
+  }
+
+  function newProject(name = "未命名项目") {
+    project.value = emptyProject(name);
+    projectPath.value = null;
+    projectDirty.value = false;
+    archive.value = null;
+    doc.value = null;
+    entries.value = [];
+    audit.value = null;
+    info.value = null;
+    result.value = null;
+    log("新建项目：" + name);
+  }
+
+  async function openProjectDialog() {
+    const path = await api.pickProjectOpen();
+    if (!path) return;
+    await openProject(path);
+  }
+
+  async function openProject(path: string) {
+    const loaded = await guard("打开项目…", () => api.loadProject(path));
+    if (!loaded) return;
+    project.value = loaded;
+    projectPath.value = loaded.path ?? path;
+    projectDirty.value = false;
+    await refreshRecents();
+    log("打开项目：" + loaded.name + "（" + loaded.files.length + " 个文件）");
+    if (loaded.files.length > 0) {
+      await selectFile(Math.min(loaded.active, loaded.files.length - 1));
+    } else {
+      archive.value = null;
+      doc.value = null;
+      entries.value = [];
+    }
+  }
+
+  async function saveProject(saveAs = false) {
+    let path = projectPath.value;
+    if (!path || saveAs) {
+      const suggested = (project.value.name || "未命名项目") + ".sc2transproj";
+      const picked = await api.pickProjectSave(suggested);
+      if (!picked) return;
+      path = picked;
+    }
+    // 去掉 Vue 的响应式包装，避免把 Proxy 塞进 IPC
+    const plain: ProjectModel = JSON.parse(JSON.stringify(project.value));
+    const saved = await guard("保存项目…", () => api.saveProject(path as string, plain));
+    if (saved) {
+      project.value = saved;
+      projectPath.value = saved.path ?? path;
+      projectDirty.value = false;
+      await refreshRecents();
+      log("已保存项目 " + projectPath.value);
+    }
+  }
+
+  /** 添加文件（可多选）。 */
+  async function addFiles() {
+    const picked = await api.pickArchives();
+    if (!picked.length) return;
+    let firstNew = -1;
+    for (const path of picked) {
+      const existing = project.value.files.findIndex((f) => f.path === path);
+      if (existing >= 0) {
+        if (firstNew < 0) firstNew = existing;
+        continue;
+      }
+      project.value.files.push({
+        path,
+        label: labelFromPath(path),
+        source: source.value,
+        target: target.value,
+        output: null,
+        stats: null,
+      });
+      if (firstNew < 0) firstNew = project.value.files.length - 1;
+    }
+    markProjectDirty();
+    log("已加入 " + picked.length + " 个文件");
+    if (firstNew >= 0) await selectFile(firstNew);
+  }
+
+  /** 直接按路径加文件（拖放用）。 */
+  async function addFilePath(path: string) {
+    const existing = project.value.files.findIndex((f) => f.path === path);
+    if (existing >= 0) {
+      await selectFile(existing);
+      return;
+    }
+    project.value.files.push({
+      path,
+      label: labelFromPath(path),
+      source: source.value,
+      target: target.value,
+      output: null,
+      stats: null,
+    });
+    markProjectDirty();
+    await selectFile(project.value.files.length - 1);
+  }
+
+  /** 切换当前文件。 */
+  async function selectFile(index: number) {
+    if (index < 0 || index >= project.value.files.length) return;
+    project.value.active = index;
+    const file = project.value.files[index];
+    source.value = file.source || "enUS";
+    target.value = file.target || "zhCN";
+    archive.value = file.path;
+    await reload();
+  }
+
+  function removeFile(index: number) {
+    if (index < 0 || index >= project.value.files.length) return;
+    const [removed] = project.value.files.splice(index, 1);
+    if (project.value.active > index) project.value.active -= 1;
+    if (project.value.active >= project.value.files.length) {
+      project.value.active = Math.max(0, project.value.files.length - 1);
+    }
+    markProjectDirty();
+    log("已移出项目：" + removed.label);
+    if (project.value.files.length === 0) {
+      archive.value = null;
+      doc.value = null;
+      entries.value = [];
+      audit.value = null;
+      info.value = null;
+    } else if (project.value.active !== index || index === 0) {
+      void selectFile(project.value.active);
+    }
+  }
+
+  function renameFileLabel(index: number, label: string) {
+    const file = project.value.files[index];
+    if (!file) return;
+    file.label = label.trim() || labelFromPath(file.path);
+    markProjectDirty();
+  }
+
+  function renameProject(name: string) {
+    project.value.name = name.trim() || "未命名项目";
+    markProjectDirty();
+  }
+
+  async function forgetRecent(path: string) {
+    await api.forgetProject(path);
+    await refreshRecents();
+  }
+
   /** 覆盖率文本，给侧栏用。 */
   function coverageText(percent: number): string {
     return formatCoverage(percent / 100);
@@ -442,6 +672,10 @@ export function useProject() {
   // 于是 s.archive 直接变成值、s.archive.value 变成非法访问。
   // 这里用普通对象，模板与脚本里统一写 .value，类型也清楚。
   const state = {
+    project,
+    projectPath,
+    projectDirty,
+    recents,
     archive,
     source,
     target,
@@ -468,6 +702,8 @@ export function useProject() {
   return {
     state,
     hasArchive,
+    hasProject,
+    projectTotals,
     files,
     filtered,
     selectedEntry,
@@ -478,6 +714,18 @@ export function useProject() {
     openArchive,
     openPath,
     reload,
+    refreshRecents,
+    newProject,
+    openProjectDialog,
+    openProject,
+    saveProject,
+    addFiles,
+    addFilePath,
+    selectFile,
+    removeFile,
+    renameFileLabel,
+    renameProject,
+    forgetRecent,
     changeLanguages,
     editTarget,
     fillFromSource,
@@ -499,4 +747,5 @@ export function useProject() {
   };
 }
 
+/** 组合式函数的返回类型（组件里把它当 "项目 API" 用）。 */
 export type Project = ReturnType<typeof useProject>;

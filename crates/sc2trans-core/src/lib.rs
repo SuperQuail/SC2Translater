@@ -17,6 +17,7 @@
 //!
 //! ## 模块
 //!
+//! * [`project`] —— 项目模型（一组文档 + 语言对 + 最近项目）
 //! * [`locales`] —— locale 常量与归档内组件命名规则
 //! * [`strings`] —— 本地化字符串表的解析 / 序列化（BOM、CRLF、\`/// 原文\` 全部保真）
 //! * [`model`]   —— JSON 结构（schema = sc2trans.keys.v1）
@@ -24,6 +25,7 @@
 
 pub mod locales;
 pub mod model;
+pub mod project;
 pub mod ops;
 pub mod strings;
 pub mod timeutil;

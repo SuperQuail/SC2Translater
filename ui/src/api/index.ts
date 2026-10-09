@@ -6,6 +6,8 @@ import type {
   AppInfo,
   AuditReport,
   InspectReport,
+  Project,
+  RecentEntry,
   TranslationDocument,
   VerifyReport,
 } from "./types";
@@ -17,6 +19,17 @@ export const api = {
   appInfo: () => call<AppInfo>("app_info"),
 
   pickArchive: () => call<string | null>("pick_archive"),
+  /** 一次选多个地图 / 模组。 */
+  pickArchives: () => call<string[]>("pick_archives"),
+
+  // --- 项目 ---
+  recentProjects: () => call<{ items: RecentEntry[] }>("recent_projects"),
+  forgetProject: (path: string) => call<void>("forget_project", { path }),
+  pickProjectSave: (defaultName: string) => call<string | null>("pick_project_save", { defaultName }),
+  pickProjectOpen: () => call<string | null>("pick_project_open"),
+  saveProject: (path: string, project: Project) =>
+    call<Project>("save_project", { path, project }),
+  loadProject: (path: string) => call<Project>("load_project", { path }),
   pickJsonSave: (defaultName: string) => call<string | null>("pick_json_save", { defaultName }),
   pickJsonOpen: () => call<string | null>("pick_json_open"),
   pickArchiveSave: (defaultName: string) => call<string | null>("pick_archive_save", { defaultName }),

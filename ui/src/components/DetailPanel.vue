@@ -66,7 +66,8 @@ const tokens = computed(() => props.project.selectedMarkup.value);
         <h3>键</h3>
         <div class="keyrow">
           <code class="key mono">{{ entry.key }}</code>
-          <button class="ghost mini" @click="copy(entry.key, 'key')">{{ copied === "key" ? "已复制" : "复制" }}</button>
+          <!-- @ts-expect-error vscode-button 是自定义元素 -->
+          <vscode-button secondary @click="copy(entry.key, 'key')">{{ copied === "key" ? "已复制" : "复制" }}</vscode-button>
         </div>
         <div v-if="entry.origin?.length" class="origin">
           来源：<span class="mono">{{ entry.origin.join("、") }}</span>
@@ -86,17 +87,24 @@ const tokens = computed(() => props.project.selectedMarkup.value);
         <h3>
           译文 <span class="len">{{ targetLength }} 字符</span>
         </h3>
-        <textarea
-          v-model="targetDraft"
+        <!-- @ts-expect-error vscode-textarea 是自定义元素 -->
+        <vscode-textarea
           class="target-area"
-          :placeholder="entry.source ? '在这里写译文…' : '这条没有原文'"
-          spellcheck="false"
-          @blur="commit"
-        ></textarea>
+          :value="targetDraft"
+          resize="vertical"
+          :placeholder="entry.source ? '在这里写译文…（Ctrl+D 用原文填入）' : '这条没有原文'"
+          @input="targetDraft = ($event.target as unknown as { value: string }).value"
+          @change="commit"
+        ></vscode-textarea>
         <div class="row-actions">
-          <button @click="useSource">用原文填入</button>
-          <button class="danger" @click="clearTarget">清空</button>
-          <button class="ghost" @click="copy(targetDraft, 'target')">{{ copied === "target" ? "已复制" : "复制译文" }}</button>
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-button secondary icon="arrow-down" @click="useSource">用原文填入</vscode-button>
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-button secondary icon="clear-all" @click="clearTarget">清空</vscode-button>
+          <!-- @ts-expect-error 自定义元素 -->
+          <vscode-button secondary icon="copy" @click="copy(targetDraft, 'target')">
+            {{ copied === "target" ? "已复制" : "复制译文" }}
+          </vscode-button>
         </div>
       </section>
     </template>
@@ -109,14 +117,13 @@ const tokens = computed(() => props.project.selectedMarkup.value);
 
 <style scoped>
 .detail {
-  width: var(--w-detail);
-  flex: 0 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--s5);
   padding: var(--s5);
-  background: var(--bg-panel);
-  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border-sidebar);
   overflow-y: auto;
 }
 
@@ -158,7 +165,7 @@ const tokens = computed(() => props.project.selectedMarkup.value);
   line-height: 1.45;
 }
 
-.mini { height: 24px; padding: 0 var(--s4); font-size: var(--fs-xs); flex: 0 0 auto; }
+
 
 .origin { font-size: var(--fs-xs); color: var(--text-faint); word-break: break-all; }
 
@@ -188,15 +195,9 @@ const tokens = computed(() => props.project.selectedMarkup.value);
   color: var(--text-muted);
 }
 
-.target-area {
-  flex: 1;
-  min-height: 120px;
-  font-size: var(--fs-sm);
-  background: var(--bg-raised);
-  border-color: var(--border-strong);
-}
+.target-area { flex: 1; min-height: 140px; width: 100%; }
 
-.row-actions { display: flex; gap: var(--s3); flex-wrap: wrap; }
+.row-actions { display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center; }
 
 .placeholder { color: var(--text-faint); font-size: var(--fs-sm); line-height: 1.7; padding: var(--s6) 0; }
 </style>

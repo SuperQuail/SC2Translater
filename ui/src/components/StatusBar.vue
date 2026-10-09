@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// 底栏：进度 + 统计 + 脏标记 + 最近一条结果/错误。
+// 底栏：VS Code 式的一条细状态条 —— 进度 + 统计 + 当前动作。
 
 import { computed } from "vue";
 
 import { formatBytes } from "../api";
 import type { Project } from "../composables/useProject";
+import Icon from "./Icon.vue";
 
 const props = defineProps<{ project: Project }>();
 const s = props.project.state;
@@ -12,34 +13,30 @@ const s = props.project.state;
 const percent = computed(() => props.project.progress.value.percent);
 const shown = computed(() => props.project.filtered.value.length);
 
-const tone = computed(() => {
-  if (s.error.value) return "err";
-  if (percent.value >= 100) return "ok";
-  if (percent.value > 0) return "warn";
-  return "err";
-});
-
 const resultLine = computed(() => {
   const r = s.result.value;
   if (!r) return "";
-  return "产物 " + formatBytes(r.bytes_out) + "（原件 " + formatBytes(r.bytes_in) + "） · 回读校验" + (r.ok ? "通过" : "失败");
+  return "产物 " + formatBytes(r.bytes_out) + " · 回读" + (r.ok ? "通过" : "失败");
 });
 </script>
 
 <template>
   <footer class="statusbar">
-    <div class="progress" :class="tone">
-      <div class="track"><div class="fill" :style="{ width: percent + '%' }"></div></div>
-      <span class="value">{{ percent.toFixed(1) }}%</span>
-    </div>
+    <span class="brand">
+      <Icon name="files" :size="12" />
+      项目 {{ s.project.value.files.length }}
+    </span>
 
-    <span class="sep"></span>
     <span class="item">键 <b>{{ props.project.counts.value.all }}</b></span>
     <span class="item">待翻译 <b class="warn">{{ props.project.counts.value.todo }}</b></span>
     <span class="item">已翻译 <b class="ok">{{ props.project.counts.value.translated }}</b></span>
     <span class="item">当前筛选 <b>{{ shown }}</b></span>
 
-    <span v-if="props.project.dirtyCount.value" class="chip-dirty">
+    <!-- @ts-expect-error vscode-progress-bar 是自定义元素 -->
+    <vscode-progress-bar class="progress" :value="percent" :max="100" />
+    <span class="value">{{ percent.toFixed(1) }}%</span>
+
+    <span v-if="props.project.dirtyCount.value" class="item warn">
       未保存 {{ props.project.dirtyCount.value }} 处
       <button class="mini" @click="props.project.revertEdits">放弃</button>
     </span>
@@ -47,9 +44,11 @@ const resultLine = computed(() => {
     <span class="spacer"></span>
 
     <span v-if="s.busy.value" class="item busy">
-      <span class="spinner"></span>{{ s.busyText.value }}
+      <Icon name="refresh" :size="12" :spin="true" />{{ s.busyText.value }}
     </span>
-    <span v-else-if="s.error.value" class="item err" :title="s.error.value">{{ s.error.value }}</span>
+    <span v-else-if="s.error.value" class="item err" :title="s.error.value">
+      <Icon name="error" :size="12" />{{ s.error.value }}
+    </span>
     <span v-else-if="resultLine" class="item ok">{{ resultLine }}</span>
     <span v-else class="item faint">{{ s.logs.value[0] ?? "就绪" }}</span>
   </footer>
@@ -62,64 +61,45 @@ const resultLine = computed(() => {
   display: flex;
   align-items: center;
   gap: var(--s5);
-  padding: 0 var(--s5);
-  background: var(--bg-panel);
+  padding: 0 var(--s3);
+  background: var(--bg-statusbar);
   border-top: 1px solid var(--border-subtle);
   font-size: var(--fs-sm);
-  color: var(--text-muted);
+  color: var(--vscode-statusBar-foreground, #cccccc);
   overflow: hidden;
 }
 
-.progress { display: flex; align-items: center; gap: var(--s3); }
-.track { width: 148px; height: 5px; border-radius: 999px; background: var(--slate-5); overflow: hidden; }
-.fill { height: 100%; transition: width var(--t-base); background: var(--slate-9); }
-.progress.ok .fill { background: var(--ok); }
-.progress.warn .fill { background: var(--warn); }
-.progress.err .fill { background: var(--err); }
-.value { font-variant-numeric: tabular-nums; color: var(--text); }
-
-.sep { width: 1px; height: 16px; background: var(--border-subtle); }
-
-.item { white-space: nowrap; }
-.item b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.item b.warn { color: var(--warn-text); }
-.item b.ok { color: var(--ok-text); }
-.item.err { color: var(--err-text); overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
-.item.ok { color: var(--ok-text); }
-.item.faint { color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; max-width: 52ch; }
-
-.spacer { flex: 1; }
-
-.chip-dirty {
+.brand {
   display: inline-flex;
   align-items: center;
   gap: var(--s3);
-  padding: 1px var(--s3);
-  border-radius: var(--r2);
-  background: var(--blue-4);
-  color: var(--accent-text);
+  padding: 0 var(--s4);
+  height: 100%;
+  background: var(--vscode-statusBarItem-remoteBackground, #0078d4);
+  color: #fff;
 }
+
+.item { display: inline-flex; align-items: center; gap: var(--s3); white-space: nowrap; }
+.item b { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
+.item b.warn { color: var(--warn-text); }
+.item b.ok { color: var(--ok-text); }
+.item.warn { color: var(--warn-text); }
+.item.err { color: var(--err-text); overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+.item.ok { color: var(--ok-text); }
+.item.faint { color: var(--vscode-statusBar-foreground, #cccccc); opacity: 0.75; overflow: hidden; text-overflow: ellipsis; max-width: 60ch; }
+.item.busy { color: var(--accent-text); }
+
+.progress { width: 120px; height: 3px; }
+.value { font-variant-numeric: tabular-nums; color: #fff; }
+
+.spacer { flex: 1; }
 
 .mini {
-  height: 20px;
+  height: 16px;
   padding: 0 var(--s3);
   font-size: var(--fs-xs);
-  background: transparent;
-  border-color: transparent;
-  color: var(--accent-text);
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
 }
-.mini:hover { background: var(--blue-5); border-color: transparent; }
-
-.busy { display: inline-flex; align-items: center; gap: var(--s3); color: var(--accent-text); }
-
-.spinner {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid var(--blue-7);
-  border-top-color: transparent;
-  animation: spin 700ms linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
+.mini:hover { background: rgba(255, 255, 255, 0.22); }
 </style>

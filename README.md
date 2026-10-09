@@ -91,8 +91,16 @@ stdout 就是一个完整 JSON 对象，进度与告警全部走 stderr，退出
 
 ![工作区](docs/design/gui-workspace.png)
 
-界面是三栏工作面（左：概览与过滤 / 中：键表 / 右：当前条目详情），
-不是一串向导按钮 —— 因为汉化是**长时间反复过的活**，要能一眼看到还剩多少、随时跳过去改。
+界面**直接接 VS Code 的官方控件与官方主题**，不是照着仿：
+
+| 来源 | 用在哪 |
+| --- | --- |
+| [`@vscode-elements/elements`](https://vscode-elements.github.io)（MIT，38 个 Web Components） | 按钮、文本框、下拉、复选框、单选、标签页、`<vscode-tree>` 资源管理器树、右键菜单、折叠面板、进度条、徽标、官方 split-layout 分隔栏 |
+| `@vscode/codicons`（微软官方图标字体） | 全部图标 |
+| VS Code 官方 **Dark Modern** 主题 | 131 个 `--vscode-*` 色令牌，由 `scripts/gen-vscode-theme.py` 从微软仓库的主题 JSON 生成（各区域各自的底色/边框，不做「一个色糊到底」） |
+
+布局按 VS Code 来：最左活动栏 -> 资源管理器（项目树）-> 编辑器（多标签 + 面包屑）-> 右侧详情，
+分隔条用官方的 `<vscode-split-layout>`，栏宽可拖且记在本地。
 
 | 能力 | 说明 |
 | --- | --- |
@@ -112,13 +120,13 @@ stdout 就是一个完整 JSON 对象，进度与告警全部走 stderr，退出
 pnpm -C ui install
 pnpm -C ui dev              # http://localhost:5184/ ，加 ?demo=1 直接进工作区
 
-# 打包
-pnpm -C ui build            # 生成 ui/dist
-cargo build --release -p sc2trans-gui --features custom-protocol
+# 打包（custom-protocol 已是默认特性，普通 cargo build 就会内嵌 ui/dist）
+pnpm -C ui build
+cargo build --release
 ```
 
-> ⚠️ `--features custom-protocol` 不能省：不带它的话 release 版也会去连 devUrl，
-> 在没有 dev server 的机器上就是一片空白窗口（已实测）。
+> ⚠️ 桌面壳必须内嵌 `ui/dist`（custom-protocol 特性，**已是默认**）；
+> 否则 release 版会去连 devUrl，在没有 dev server 的机器上就是一片空白窗口（已实测）。
 
 ### 3.3 Python 调研原型
 

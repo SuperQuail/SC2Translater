@@ -129,6 +129,50 @@ export interface VerifyReport {
   string_tables_roundtrip_exact: boolean;
 }
 
+// --------------------------------------------------------------------------- //
+// 项目模型（与 Rust 侧 sc2trans-core/src/project.rs 一一对应）
+// --------------------------------------------------------------------------- //
+
+export interface FileStats {
+  entries: number;
+  missing: number;
+  identical: number;
+  translated: number;
+  locales_present: number;
+  size: number;
+  scanned_at: string;
+}
+
+export interface ProjectFile {
+  path: string;
+  label: string;
+  source: string;
+  target: string;
+  output?: string | null;
+  stats?: FileStats | null;
+}
+
+export interface Project {
+  format: number;
+  name: string;
+  files: ProjectFile[];
+  active: number;
+  created_at: string;
+  updated_at: string;
+  path?: string | null;
+}
+
+export interface RecentEntry {
+  path: string;
+  name: string;
+  opened_at: string;
+  files: number;
+}
+
+export interface RecentProjects {
+  items: RecentEntry[];
+}
+
 export interface AppInfo {
   name: string;
   version: string;
