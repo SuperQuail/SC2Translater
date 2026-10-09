@@ -246,6 +246,33 @@ async fn seed(
     .await
 }
 
+/// 补全默认语言：用指定语言的文本覆盖「没有语言文件」的语言。
+#[command]
+async fn fill_locales(
+    archive: String,
+    source: String,
+    locales: String,
+    only_missing: bool,
+    with_original: bool,
+    out: String,
+) -> Result<Value, String> {
+    blocking(move || {
+        let targets = ops::FillTargets::parse(&locales).map_err(|e| format!("{e:#}"))?;
+        let result = ops::fill_locales(
+            Path::new(&archive),
+            &source,
+            &targets,
+            only_missing,
+            with_original,
+            Some(Path::new(&out)),
+            false,
+        )
+        .map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(&result).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
 /// 容器自检。
 #[command]
 async fn verify(archive: String, deep: bool) -> Result<Value, String> {
@@ -305,6 +332,7 @@ pub fn run() {
             apply_document,
             apply,
             seed,
+            fill_locales,
             verify,
             reveal,
             default_output_name,

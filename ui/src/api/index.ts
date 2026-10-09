@@ -57,6 +57,16 @@ export const api = {
     sortKeys: boolean,
   ) => call<ApplyResult>("seed", { archive, source, target, out, withOriginal, sortKeys }),
 
+  /** 补全默认语言：用 source 的文本覆盖「没有语言文件」的语言。 */
+  fillLocales: (
+    archive: string,
+    source: string,
+    locales: string,
+    onlyMissing: boolean,
+    withOriginal: boolean,
+    out: string,
+  ) => call<ApplyResult>("fill_locales", { archive, source, locales, onlyMissing, withOriginal, out }),
+
   verify: (archive: string, deep: boolean) => call<VerifyReport>("verify", { archive, deep }),
   reveal: (path: string) => call<void>("reveal", { path }),
 };

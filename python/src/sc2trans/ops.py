@@ -254,6 +254,13 @@ def _audit_diagnosis(report: list[dict[str, Any]], by_file: dict[str, Any],
     player_files = [f for f, meta in by_file.items() if meta["player_facing"]]
     if not report:
         return {"severity": "info", "message": "归档里没有任何 <locale>.SC2Data 语言目录。"}
+    # 只有源语言一种：不会在「已存在的语言」里露出问题，但切成别的语言就全是键路径
+    if all(row["locale"] == source_locale for row in report):
+        return {
+            "severity": "warning",
+            "message": ("归档里只有 " + source_locale + " 一种语言：游戏语言切成其它任何一种时，"
+                        "地图里所有文本都会显示成原始键路径。用「补全语言」可以一次把其余语言补上。"),
+        }
     if not player_files:
         return {
             "severity": "info",

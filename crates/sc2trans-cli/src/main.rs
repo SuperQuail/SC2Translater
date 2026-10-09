@@ -111,6 +111,27 @@ enum Command {
         force: bool,
     },
 
+    /// 补全默认语言：用指定语言的文本覆盖那些「没有语言文件」的语言
+    Fill {
+        archive: PathBuf,
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        /// 填充来源语言
+        #[arg(long, default_value = "enUS")]
+        source: String,
+        /// 要补哪些语言：all（全部）或逗号分隔，如 zhCN,zhTW
+        #[arg(long, default_value = "all")]
+        locales: String,
+        /// 用源语言整份覆盖（默认只补缺的键，不动已有译文）
+        #[arg(long)]
+        overwrite: bool,
+        /// 写成「译文 /// 原文」的形式
+        #[arg(long)]
+        with_original: bool,
+        #[arg(long)]
+        force: bool,
+    },
+
     /// 容器自检 + 字符串表往返回读
     Verify {
         archive: PathBuf,
@@ -341,6 +362,49 @@ fn run(cli: &Cli) -> Result<()> {
                     source
                 );
                 println!("回读校验 {}", if result.ok { "通过" } else { "失败" });
+            }
+            if !result.ok {
+                anyhow::bail!("回读校验失败");
+            }
+            Ok(())
+        }
+
+        Command::Fill { archive, out, source, locales, overwrite, with_original, force } => {
+            check_locale(source)?;
+            let targets = ops::FillTargets::parse(locales)?;
+            let result = ops::fill_locales(
+                archive,
+                source,
+                &targets,
+                !overwrite,
+                *with_original,
+                out.as_deref(),
+                *force,
+            )?;
+            let value = serde_json::to_value(&result)?;
+            if cli.json {
+                print_json(&value)?;
+            } else {
+                println!("已写出 {}", result.output);
+                println!(
+                    "用 {} 补全了 {} 种语言：",
+                    source,
+                    result.components_written.len()
+                );
+                for (locale, files) in &result.components_written {
+                    let added: usize = files.values().map(|f| f.added).sum();
+                    let names: Vec<&str> = files.keys().map(|s| s.as_str()).collect();
+                    println!("  {:<6} 新增 {:>5} 条   {}", locale, added, names.join(", "));
+                }
+                println!(
+                    "共新增 {} 条；回读校验{}",
+                    result.seeded.unwrap_or(0),
+                    if result.ok { "通过" } else { "失败" }
+                );
+                println!(
+                    "体积 {} -> {} 字节",
+                    result.bytes_in, result.bytes_out
+                );
             }
             if !result.ok {
                 anyhow::bail!("回读校验失败");

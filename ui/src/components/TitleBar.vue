@@ -9,6 +9,7 @@ import { COMMON_LOCALES } from "../composables/useProject";
 import type { Project } from "../composables/useProject";
 
 const props = defineProps<{ project: Project; info: AppInfo | null }>();
+const emit = defineEmits<{ (e: "fill"): void }>();
 
 const s = props.project.state;
 
@@ -114,7 +115,14 @@ const archiveMeta = computed(() =>
       >
         写回地图
       </button>
-      <button :disabled="!s.doc.value || s.busy.value" title="用原文补满目标语言，先消除键路径" @click="props.project.seedMissing">
+      <button
+        :disabled="!s.doc.value || s.busy.value"
+        title="没有语言文件的语言，一次全部补上"
+        @click="emit('fill')"
+      >
+        补全语言
+      </button>
+      <button :disabled="!s.doc.value || s.busy.value" title="只用原文补当前目标语言" @click="props.project.seedMissing">
         一键兜底
       </button>
       <button class="ghost" :disabled="s.busy.value" title="容器自检" @click="props.project.runVerify">自检</button>

@@ -14,8 +14,9 @@ import { api, isTauri } from "./api";
 import { DEMO_ARCHIVE } from "./api/bridge";
 import type { AppInfo } from "./api/types";
 import DetailPanel from "./components/DetailPanel.vue";
-import KeyTable from "./components/KeyTable.vue";
+import FillDialog from "./components/FillDialog.vue";
 import SidePanel from "./components/SidePanel.vue";
+import WorkspacePane from "./components/WorkspacePane.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TitleBar from "./components/TitleBar.vue";
 import WelcomePane from "./components/WelcomePane.vue";
@@ -23,14 +24,20 @@ import { useProject } from "./composables/useProject";
 
 const project = useProject();
 const info = ref<AppInfo | null>(null);
-const table = ref<InstanceType<typeof KeyTable> | null>(null);
+const pane = ref<InstanceType<typeof WorkspacePane> | null>(null);
 const dropping = ref(false);
+const fillOpen = ref(false);
+const initialView = ref<"table" | "json">("table");
 
 onMounted(async () => {
   info.value = await api.appInfo();
-  // 浏览器里加 ?demo=1 直接进工作区，方便调 UI（也让截图能覆盖到真实布局）
-  if (!isTauri && new URLSearchParams(window.location.search).has("demo")) {
-    await project.openPath(DEMO_ARCHIVE);
+  // 浏览器调试用的深链：?demo=1 直接进工作区、&view=json 开 JSON 视图、&fill=1 开补全对话框。
+  // 桌面壳里这几个参数没有影响。
+  if (!isTauri) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("view")) initialView.value = params.get("view") === "json" ? "json" : "table";
+    if (params.has("fill")) fillOpen.value = true;
+    if (params.has("demo")) await project.openPath(DEMO_ARCHIVE);
   }
   window.addEventListener("keydown", onKeydown);
   if (isTauri) {
@@ -65,7 +72,7 @@ function onKeydown(event: KeyboardEvent) {
   const mod = event.ctrlKey || event.metaKey;
   if (mod && event.key.toLowerCase() === "f") {
     event.preventDefault();
-    table.value?.focusSearch();
+    pane.value?.focusSearch();
     return;
   }
   if (mod && event.key.toLowerCase() === "s") {
@@ -96,17 +103,18 @@ function onKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="app">
-    <TitleBar :project="project" :info="info" />
+    <TitleBar :project="project" :info="info" @fill="fillOpen = true" />
 
     <div class="body">
       <template v-if="project.hasArchive.value">
         <SidePanel :project="project" />
-        <KeyTable ref="table" :project="project" />
+        <WorkspacePane ref="pane" :project="project" :initial-view="initialView" />
         <DetailPanel :project="project" />
       </template>
       <WelcomePane v-else :dropping="dropping" @open="project.openArchive" />
     </div>
 
+    <FillDialog v-if="fillOpen" :project="project" @close="fillOpen = false" />
     <StatusBar :project="project" />
   </div>
 </template>

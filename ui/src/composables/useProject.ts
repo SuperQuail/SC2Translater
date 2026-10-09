@@ -377,6 +377,32 @@ export function useProject() {
     }
   }
 
+  /**
+   * 补全默认语言：用当前源语言的文本，去覆盖那些「没有语言文件」的语言。
+   *
+   * locales 为 "all" 或逗号分隔的语言列表；onlyMissing=true 时不覆盖已有译文。
+   */
+  async function fillDefaultLanguages(locales: string, onlyMissing: boolean, out: string) {
+    if (!archive.value) return;
+    const res = await guard("补全默认语言…", () =>
+      api.fillLocales(archive.value as string, source.value, locales, onlyMissing, false, out),
+    );
+    if (res) {
+      result.value = res;
+      const count = Object.keys(res.components_written).length;
+      log(
+        "已写出 " +
+          res.output +
+          "；补全 " +
+          count +
+          " 种语言，共新增 " +
+          (res.seeded ?? 0) +
+          " 条，回读校验" +
+          (res.ok ? "通过" : "失败"),
+      );
+    }
+  }
+
   async function runVerify() {
     const path = result.value?.output ?? archive.value;
     if (!path) return;
@@ -464,6 +490,7 @@ export function useProject() {
     importJson,
     applyToArchive,
     seedMissing,
+    fillDefaultLanguages,
     runVerify,
     revealOutput,
     moveSelection,

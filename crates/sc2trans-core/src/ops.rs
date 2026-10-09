@@ -371,6 +371,20 @@ fn diagnose_audit(
     if rows.is_empty() {
         return json!({ "severity": "info", "message": "归档里没有任何 <locale>.SC2Data 语言目录。" });
     }
+    // 归档里只有源语言一种 —— 这是最常见、也最容易被忽略的情形：
+    // 它不会在「已存在的语言」里露出任何问题，但游戏切成别的语言时全是键路径。
+    let has_other_locale = rows
+        .iter()
+        .any(|r| r.get("locale").and_then(|v| v.as_str()) != Some(source_locale));
+    if !has_other_locale {
+        return json!({
+            "severity": "warning",
+            "message": format!(
+                "归档里只有 {source_locale} 一种语言：游戏语言切成其它任何一种时，地图里所有文本都会显示成原始键路径。用「补全语言」可以一次把其余语言补上。"
+            ),
+        });
+    }
+
     // 只看**面向玩家**的表
     let player_files: Vec<String> = tables
         .values()
@@ -645,9 +659,221 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// 快捷修复：把源语言的文本整份补进目标语言，游戏内不再出现原始键路径。
+/// 「补全默认语言」的作用范围。
+#[derive(Debug, Clone)]
+pub enum FillTargets {
+    /// 全部已知语言（除源语言外），外加归档里出现过但不在官方 12 语言里的代码。
+    All,
+    /// 只补这几个语言。
+    Explicit(Vec<String>),
+}
+
+impl FillTargets {
+    /// 从命令行字符串解析：all，或逗号分隔的语言列表。
+    pub fn parse(spec: &str) -> Result<Self> {
+        let trimmed = spec.trim();
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("all") {
+            return Ok(FillTargets::All);
+        }
+        let list: Vec<String> = trimmed
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        for code in &list {
+            if !crate::locales::locale_code_ok(code) {
+                return Err(CoreError::Invalid(format!("语言代码形状不对（应为 2~4 个字母）: {code}")));
+            }
+        }
+        if list.is_empty() {
+            return Err(CoreError::Invalid("没有解析出任何语言代码".into()));
+        }
+        Ok(FillTargets::Explicit(list))
+    }
+}
+
+/// **补全默认语言**：用指定语言的文本，去覆盖那些「没有语言文件」的语言。
 ///
-/// 这是「没有汉化文本时」的兜底：显示英文总好过显示 Param/Value/xxxx。
+/// 这是本工具解决「键显示成路径」最直接的一招：一张只带 enUS 的地图，在其余
+/// 11 种语言下全都会露出键路径 —— 这个操作一次把它们全部补上。
+///
+/// * 范围选 All 时补全部语言（源语言除外），包含归档里出现过的非官方代码；
+/// * only_missing = true（默认）时**不覆盖已有译文**，只补缺的键；
+///   设为 false 才是「用源语言整份覆盖」。
+pub fn fill_locales(
+    path: &Path,
+    source_locale: &str,
+    targets: &FillTargets,
+    only_missing: bool,
+    with_original: bool,
+    out: Option<&Path>,
+    force: bool,
+) -> Result<ApplyResult> {
+    let reader = Archive::open(path)?;
+    ensure_listfile(&reader, path)?;
+    let tables = locale_tables(&reader);
+    let src = load_tables(&reader, source_locale)?;
+    if src.is_empty() {
+        return Err(CoreError::Invalid(format!(
+            "{} 里没有 {} 的字符串表，无法作为填充来源",
+            path.display(),
+            source_locale
+        )));
+    }
+    let base = load_tables(&reader, BASE)?;
+
+    let target_list: Vec<String> = match targets {
+        FillTargets::All => {
+            let mut list: Vec<String> = LOCALES
+                .iter()
+                .filter(|l| !l.eq_ignore_ascii_case(source_locale))
+                .map(|l| l.to_string())
+                .collect();
+            // 归档里出现过的非官方语言代码也一并补上（实测有 zhCH / enGB 之类）
+            for code in tables.keys() {
+                if code != BASE
+                    && !code.eq_ignore_ascii_case(source_locale)
+                    && !list.iter().any(|l| l.eq_ignore_ascii_case(code))
+                {
+                    list.push(code.clone());
+                }
+            }
+            list
+        }
+        FillTargets::Explicit(v) => v.clone(),
+    };
+    if target_list.is_empty() {
+        return Err(CoreError::Invalid("没有要补的目标语言".into()));
+    }
+
+    let label = if target_list.len() == 1 { target_list[0].as_str() } else { "all" };
+    let dest = target_path(path, out, label);
+    if same_file(path, &dest) && !force {
+        return Err(CoreError::Invalid(
+            "输出路径与输入相同，会覆盖原文件；确认请加 --force".into(),
+        ));
+    }
+
+    let mut doc = Document::open(path)?;
+    let mut written: BTreeMap<String, BTreeMap<String, FileWriteInfo>> = BTreeMap::new();
+    let mut touched: BTreeMap<String, BTreeMap<String, BTreeSet<String>>> = BTreeMap::new();
+
+    for target in &target_list {
+        for (filename, source_table) in &src {
+            let comp = component_name(target, filename);
+            let mut table = match doc.get(&comp) {
+                Some(bytes) => StringFile::parse(bytes, &comp)?,
+                None => StringFile {
+                    records: Vec::new(),
+                    bom: source_table.bom,
+                    newline: source_table.newline,
+                    trailing_newline: source_table.trailing_newline,
+                    source_name: comp.clone(),
+                },
+            };
+            let before = table.key_set();
+            let mut wanted: BTreeSet<String> = BTreeSet::new();
+            for pair in source_table.pairs() {
+                if pair.value.is_empty() {
+                    continue; // 源语言里是空值就跳过，免得把空串铺满
+                }
+                if only_missing && table.contains(&pair.key) {
+                    continue;
+                }
+                if with_original {
+                    table.set_full(&pair.key, &pair.value, Some(pair.value.as_str()));
+                } else {
+                    table.set(&pair.key, &pair.value);
+                }
+                wanted.insert(pair.key.clone());
+            }
+            // Base 的同名表也当兜底来源（Base 任何语言都加载，所以只补缺的键）
+            if let Some(base_table) = base.get(filename) {
+                for pair in base_table.pairs() {
+                    if table.contains(&pair.key) || pair.value.is_empty() {
+                        continue;
+                    }
+                    table.set(&pair.key, &pair.value);
+                    wanted.insert(pair.key.clone());
+                }
+            }
+            let after = table.key_set();
+            let added = after.difference(&before).count();
+            if added == 0 && !before.is_empty() {
+                continue; // 这条语言/表已经齐了，别白写一遍
+            }
+            doc.set(
+                &comp,
+                table.to_bytes(),
+            );
+            written.entry(target.clone()).or_default().insert(
+                filename.clone(),
+                FileWriteInfo { component: comp.clone(), added, updated: 0, total: after.len() },
+            );
+            touched.entry(target.clone()).or_default().insert(filename.clone(), wanted);
+        }
+    }
+
+    if written.is_empty() {
+        return Err(CoreError::Invalid("所有目标语言都已完整，没有需要补的内容".into()));
+    }
+
+    let info = doc.save(&dest)?;
+
+    // 回读校验
+    let check = Archive::open(&dest)?;
+    let mut readback: BTreeMap<String, ReadbackInfo> = BTreeMap::new();
+    for (target, files) in &touched {
+        for (filename, want) in files {
+            let entry = &written[target][filename];
+            match check.try_read(&entry.component) {
+                Some(bytes) => {
+                    let table = StringFile::parse(&bytes, &entry.component)?;
+                    let got = want.iter().filter(|k| table.contains(k)).count();
+                    readback.insert(
+                        format!("{target}/{filename}"),
+                        ReadbackInfo { ok: got == want.len(), keys: got, expected: want.len() },
+                    );
+                }
+                None => {
+                    readback.insert(
+                        format!("{target}/{filename}"),
+                        ReadbackInfo { ok: false, keys: 0, expected: want.len() },
+                    );
+                }
+            }
+        }
+    }
+    let ok = !readback.is_empty() && readback.values().all(|r| r.ok);
+    let total_added: usize = written.values().flat_map(|m| m.values()).map(|i| i.added).sum();
+
+    Ok(ApplyResult {
+        ok,
+        input: path.display().to_string(),
+        output: dest.display().to_string(),
+        target_locale: if target_list.len() == 1 { target_list[0].clone() } else { "all".into() },
+        source_locale: Some(source_locale.to_string()),
+        components_written: written,
+        container: ContainerInfo {
+            bytes: info.bytes,
+            entries: info.entries,
+            blocks: info.blocks,
+            hash_entries: info.hash_entries,
+            het_bytes: info.het_bytes,
+            bet_bytes: info.bet_bytes,
+            block_size: info.block_size,
+        },
+        readback,
+        bytes_in: std::fs::metadata(path)?.len(),
+        bytes_out: std::fs::metadata(&dest)?.len(),
+        seeded: Some(total_added),
+        diagnosis_before: None,
+    })
+}
+
+/// 快捷修复：把源语言的文本整份补进**一个**目标语言。
+///
+/// 等价于「补全默认语言」只勾一个语言 —— 显示英文总好过显示 Param/Value/xxxx。
 pub fn seed(
     path: &Path,
     source_locale: &str,
@@ -657,11 +883,15 @@ pub fn seed(
     let doc = extract(path, source_locale, target_locale, None, false)?;
     let missing = doc.stats.by_status.get(STATUS_MISSING).copied().unwrap_or(0)
         + doc.stats.by_status.get(STATUS_IDENTICAL).copied().unwrap_or(0);
-    let value = serde_json::to_value(&doc)?;
-    let mut apply_opts = opts.clone();
-    apply_opts.target_locale = Some(target_locale.to_string());
-    apply_opts.fill_missing = true;
-    let mut result = apply(path, &value, &apply_opts)?;
+    let mut result = fill_locales(
+        path,
+        source_locale,
+        &FillTargets::Explicit(vec![target_locale.to_string()]),
+        true,
+        opts.with_original,
+        opts.out.as_deref(),
+        opts.force,
+    )?;
     result.seeded = Some(missing);
     result.diagnosis_before = doc.diagnosis.clone();
     Ok(result)

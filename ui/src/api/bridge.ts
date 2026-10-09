@@ -183,6 +183,24 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
     case "apply_document":
     case "seed":
       return demoApply(cmd);
+    case "fill_locales": {
+      const base = demoApply("seed");
+      const codes = String(args?.locales ?? "all");
+      const list =
+        codes === "all"
+          ? ["deDE", "esES", "esMX", "frFR", "itIT", "koKR", "plPL", "ptBR", "ruRU", "zhTW"]
+          : codes.split(",");
+      base.target_locale = list.length === 1 ? list[0] : "all";
+      base.components_written = {};
+      for (const code of list) {
+        base.components_written[code] = {
+          "GameStrings.txt": { component: code + ".SC2Data\\LocalizedData\\GameStrings.txt", added: 32, updated: 0, total: 32 },
+          "ObjectStrings.txt": { component: code + ".SC2Data\\LocalizedData\\ObjectStrings.txt", added: 3, updated: 0, total: 3 },
+        };
+      }
+      base.seeded = list.length * 35;
+      return base;
+    }
     case "export_document":
       return { path: args?.out, bytes: 12345 };
     case "import_document":
