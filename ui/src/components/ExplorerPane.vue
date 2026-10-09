@@ -256,7 +256,7 @@ vscode-tree { display: block; width: 100%; }
 .fileRow:hover { background: var(--list-hover); }
 .fileRow.active { background: var(--list-active-bg); color: var(--list-active-fg); }
 .fileRow.dim { color: var(--text-faint); }
-.fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fname { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .linked {
   flex: 0 0 auto; font-size: 9px; padding: 0 4px; border-radius: var(--r1);
   background: var(--accent); color: #fff;

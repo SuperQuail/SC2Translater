@@ -143,6 +143,21 @@ export const api = {
     call<{ output: string }>("vcs_unpack", { projectFile, document }),
   /** 扫工程目录，列出我们认得的文件。 */
   scanFolder: (root: string) => call<FileEntry[]>("scan_folder", { root }),
+
+  // --- 工作区（一个文件夹 = 一个工程） ---
+  pickFolder: () => call<string | null>("pick_folder"),
+  workspaceLoad: (root: string) =>
+    call<{ workspace: unknown; legacy_projects: string[]; stats: Record<string, unknown> }>("workspace_load", { root }),
+  workspaceSave: (root: string, workspace: unknown) =>
+    call<{ ok: boolean }>("workspace_save", { root, workspace }),
+  workspaceSaveStats: (root: string, stats: unknown) =>
+    call<{ ok: boolean }>("workspace_save_stats", { root, stats }),
+  workspaceMigrate: (root: string, projectFile: string) =>
+    call<{ workspace: unknown; outside: string[] }>("workspace_migrate", { root, projectFile }),
+  workspaceScan: (root: string) => call<FileEntry[]>("workspace_scan", { root }),
+  recentFolders: () => call<{ items: RecentEntry[] }>("recent_folders"),
+  recentTouch: (root: string) => call<{ items: RecentEntry[] }>("recent_touch", { root }),
+  forgetFolder: (path: string) => call<{ items: RecentEntry[] }>("forget_folder", { path }),
   /** 打开一个文件：返回类型与内容，或者拒绝的理由。 */
   openFile: (root: string, path: string) => call<OpenFile>("open_file", { root, path }),
 

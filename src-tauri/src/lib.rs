@@ -632,6 +632,146 @@ fn load_glossary_pair(dir: &Path, project_file: Option<&str>) -> glossary::Gloss
     pair
 }
 
+// =========================================================================== //
+// 工作区（一个文件夹 = 一个工程）
+// =========================================================================== //
+
+/// 选一个文件夹当工程根。
+#[command]
+async fn pick_folder() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new().set_title("打开文件夹").pick_folder().map(|p| p.display().to_string())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// 读工作区；顺带把「这个文件夹里有没有老项目文件」一起告诉前端，好提示迁移。
+#[command]
+async fn workspace_load(root: String) -> Result<Value, String> {
+    blocking(move || {
+        let base = PathBuf::from(&root);
+        let ws = sc2trans_core::workspace::Workspace::load(&base).map_err(|e| format!("{e:#}"))?;
+        let legacy: Vec<String> =
+            sc2trans_core::workspace::legacy_projects(&base).iter().map(|p| p.display().to_string()).collect();
+        let stats = sc2trans_core::workspace::Workspace::load_stats(&base);
+        Ok(serde_json::json!({ "workspace": ws, "legacy_projects": legacy, "stats": stats }))
+    })
+    .await
+}
+
+/// 写工作区。
+#[command]
+async fn workspace_save(root: String, workspace: Value) -> Result<Value, String> {
+    blocking(move || {
+        let ws: sc2trans_core::workspace::Workspace =
+            serde_json::from_value(workspace).map_err(|e| format!("工作区结构不对: {e}"))?;
+        ws.save(Path::new(&root)).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "ok": true }))
+    })
+    .await
+}
+
+/// 写统计缓存（单独一份，不进清单）。
+#[command]
+async fn workspace_save_stats(root: String, stats: Value) -> Result<Value, String> {
+    blocking(move || {
+        let map: std::collections::BTreeMap<String, sc2trans_core::project::FileStats> =
+            serde_json::from_value(stats).map_err(|e| format!("统计结构不对: {e}"))?;
+        sc2trans_core::workspace::Workspace::save_stats(Path::new(&root), &map).map_err(|e| format!("{e:#}"))?;
+        Ok(serde_json::json!({ "ok": true }))
+    })
+    .await
+}
+
+/// 把老项目文件迁移成工作区。**不删、不改**老文件。
+#[command]
+async fn workspace_migrate(root: String, project_file: String) -> Result<Value, String> {
+    blocking(move || {
+        use sc2trans_core::project::Project;
+        use sc2trans_core::workspace::Workspace;
+        let base = PathBuf::from(&root);
+        let text = std::fs::read_to_string(&project_file).map_err(|e| format!("读 {project_file} 失败: {e}"))?;
+        let project = Project::from_json(&text).map_err(|e| format!("{e:#}"))?;
+        let (ws, outside) = Workspace::from_project(&project, &base);
+        ws.save(&base).map_err(|e| format!("{e:#}"))?;
+        // 留个备份再让用户自己决定删不删原件
+        let _ = std::fs::copy(&project_file, format!("{project_file}.bak"));
+        Ok(serde_json::json!({ "workspace": ws, "outside": outside }))
+    })
+    .await
+}
+
+/// 最近打开的工作区列表。
+#[command]
+async fn recent_folders(app: tauri::AppHandle) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        use sc2trans_core::project::RecentProjects;
+        // 老文件名读一次，用户的历史不丢
+        let mut recent = RecentProjects::load_named(&dir, "recent-folders.json");
+        if recent.items.is_empty() {
+            let old = RecentProjects::load(&dir);
+            if !old.items.is_empty() {
+                recent = old;
+            }
+        }
+        recent.prune();
+        serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 记一次打开。
+#[command]
+async fn recent_touch(app: tauri::AppHandle, root: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        use sc2trans_core::project::{RecentProjects, normalize_path};
+        let mut recent = RecentProjects::load_named(&dir, "recent-folders.json");
+        let name = Path::new(&root).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| root.clone());
+        recent.items.retain(|e| normalize_path(&e.path) != normalize_path(&root));
+        recent.items.insert(
+            0,
+            sc2trans_core::project::RecentEntry {
+                path: root,
+                name,
+                opened_at: sc2trans_core::timeutil::now_rfc3339(),
+                files: 0,
+            },
+        );
+        recent.items.truncate(20);
+        recent.save_named(&dir, "recent-folders.json").map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 从最近列表里移除一条。
+#[command]
+async fn forget_folder(app: tauri::AppHandle, path: String) -> Result<Value, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || {
+        use sc2trans_core::project::RecentProjects;
+        let mut recent = RecentProjects::load_named(&dir, "recent-folders.json");
+        recent.forget(&path);
+        recent.save_named(&dir, "recent-folders.json").map_err(|e| format!("{e:#}"))?;
+        serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
+/// 扫工作区，列出我们认得的文件。
+#[command]
+async fn workspace_scan(root: String) -> Result<Value, String> {
+    blocking(move || {
+        let found = sc2trans_core::workspace::scan(Path::new(&root), 6, 2000);
+        serde_json::to_value(found).map_err(|e| format!("{e:#}"))
+    })
+    .await
+}
+
 /// 扫工程目录，列出我们认得的文件（有深度与条目上限，不扫 node_modules 这类）。
 #[command]
 async fn scan_folder(root: String) -> Result<Value, String> {
@@ -1010,6 +1150,15 @@ pub fn run() {
             pick_image,
             scan_folder,
             open_file,
+            pick_folder,
+            workspace_load,
+            workspace_save,
+            workspace_save_stats,
+            workspace_migrate,
+            recent_folders,
+            recent_touch,
+            forget_folder,
+            workspace_scan,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 应用失败");

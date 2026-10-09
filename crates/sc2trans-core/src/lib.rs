@@ -37,6 +37,7 @@ pub mod ops;
 pub mod strings;
 pub mod timeutil;
 pub mod vcs;
+pub mod workspace;
 
 /// 工具标识，写进导出 JSON 的 tool 字段。
 pub const TOOL_ID: &str = concat!("sc2trans ", env!("CARGO_PKG_VERSION"));

@@ -205,16 +205,44 @@ export function useProject() {
   const dirtyCount = computed(() => dirty.value.size);
 
   // ------------------------------------------------------------------ 动作
+  /**
+   * 工作区模式下的工程根。
+   *
+   * 清单里存的是**相对路径**（整个文件夹能搬走），但 api 那一层要绝对路径，
+   * 所以这里统一收口：编辑模型里存相对，调 api 前解析成绝对。
+   */
+  let workRoot = "";
+
+  function setRoot(root: string) {
+    workRoot = root ?? "";
+  }
+
+  /** 相对路径 -> 绝对路径；本来就是绝对的（或没有根）就原样返回。 */
+  function resolvePath(p: string): string {
+    if (!p || !workRoot) return p;
+    if (/^[A-Za-z]:[\\/]/.test(p) || p.startsWith("/") || p.startsWith("\\\\")) return p;
+    return workRoot.replace(/[\\/]$/, "") + "/" + p;
+  }
+
+  /** 绝对路径 -> 相对工程根；不在工程里就原样返回。 */
+  function relativizePath(p: string): string {
+    if (!workRoot) return p;
+    const root = workRoot.replace(/[\\/]$/, "").toLowerCase();
+    const low = p.replace(/\\/g, "/").toLowerCase();
+    if (low.startsWith(root + "/")) return p.replace(/\\/g, "/").slice(root.length + 1);
+    return p;
+  }
+
   async function openArchive() {
     const path = await guard("选择地图…", () => api.pickArchive());
     if (!path) return;
-    archive.value = path;
+    archive.value = resolvePath(path);
     await reload();
   }
 
-  /** 直接指定归档路径（拖放文件用）。 */
+  /** 直接指定归档路径（点文件树 / 拖放文件用）。可以是相对路径。 */
   async function openPath(path: string) {
-    archive.value = path;
+    archive.value = resolvePath(path);
     await reload();
   }
 
@@ -246,7 +274,7 @@ export function useProject() {
 
   /** 把一次扫描的结果写回当前项目条目。 */
   function syncActiveStats(loaded: TranslationDocument, path: string) {
-    const idx = project.value.files.findIndex((f) => f.path === path);
+    const idx = project.value.files.findIndex((f) => f.path === relativizePath(path));
     if (idx < 0) return;
     const byStatus = loaded.stats.by_status ?? {};
     const want = (k: string) => byStatus[k] ?? 0;
@@ -619,13 +647,14 @@ export function useProject() {
     if (!picked.length) return;
     let firstNew = -1;
     for (const path of picked) {
-      const existing = project.value.files.findIndex((f) => f.path === path);
+      const rel = relativizePath(path);
+      const existing = project.value.files.findIndex((f) => f.path === rel);
       if (existing >= 0) {
         if (firstNew < 0) firstNew = existing;
         continue;
       }
       project.value.files.push({
-        path,
+        path: rel,
         label: labelFromPath(path),
         source: source.value,
         target: target.value,
@@ -641,13 +670,14 @@ export function useProject() {
 
   /** 直接按路径加文件（拖放用）。 */
   async function addFilePath(path: string) {
-    const existing = project.value.files.findIndex((f) => f.path === path);
+    const rel = relativizePath(path);
+    const existing = project.value.files.findIndex((f) => f.path === rel);
     if (existing >= 0) {
       await selectFile(existing);
       return;
     }
     project.value.files.push({
-      path,
+      path: rel,
       label: labelFromPath(path),
       source: source.value,
       target: target.value,
@@ -665,7 +695,7 @@ export function useProject() {
     const file = project.value.files[index];
     source.value = file.source || "enUS";
     target.value = file.target || "zhCN";
-    archive.value = file.path;
+    archive.value = resolvePath(file.path);
     await reload();
   }
 
@@ -749,6 +779,10 @@ export function useProject() {
     state,
     hasArchive,
     hasProject,
+    // 工作区模式：清单存相对路径，调 api 前解析
+    setRoot,
+    resolvePath,
+    relativizePath,
     // 撤销 / 重做（A 定稿的配套：记忆改动，Ctrl+Z 撤回）
     undo,
     redo,

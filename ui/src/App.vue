@@ -36,8 +36,8 @@ import type { SettingsDraft } from "./composables/settings";
 import { useContextMenu } from "./composables/useContextMenu";
 import { useGlossary } from "./composables/useGlossary";
 import { useMt } from "./composables/useMt";
-import { useFiles } from "./composables/useFiles";
 import { useProject } from "./composables/useProject";
+import { DEMO_FOLDER, useWorkspace } from "./composables/useWorkspace";
 import { useVcs } from "./composables/useVcs";
 
 const project = useProject();
@@ -47,7 +47,58 @@ const menu = useContextMenu();
 // 三块新功能的共享状态：术语库 / 机翻参考 / 版本管理。
 const projectFile = () => s.projectPath.value;
 const activeDocument = () => s.archive.value;
-const files = useFiles();
+/**
+ * 工作区：一个文件夹 = 一个工程。
+ * 它管持久化（.sc2translater/workspace.json + 文件树），useProject 管编辑会话，两者靠 setRoot 对接。
+ */
+const ws = useWorkspace();
+
+/** 扫描出来的文件树里点一个：SC2 文档走翻译键流程，其余走文件查看器。 */
+async function onTreeOpen(rel: string) {
+  const hit = ws.tree.value.find((f) => f.path === rel);
+  if (hit?.kind === "sc2") {
+    // 顺手把它加进项目（幂等），再打开
+    await project.addFilePath(rel);
+    return;
+  }
+  await ws.open(rel);
+}
+
+/** 打开文件夹：读工作区 -> 扫目录 -> 把文件清单灌进编辑会话。 */
+async function openFolderFlow(path?: string) {
+  const root = path ? await ws.load(path) : await ws.openFolder();
+  if (!root) return;
+  project.setRoot(root);
+  const list = ws.model.value?.files ?? [];
+  if (list.length) {
+    const s = project.state;
+    s.project.value = {
+      ...s.project.value,
+      name: ws.name.value || s.project.value.name,
+      files: list.map((f) => ({ ...f, stats: null })) as typeof s.project.value.files,
+      active: 0,
+    };
+    await project.selectFile(0);
+  }
+  await glossary.refresh();
+}
+
+// 编辑会话里的文件清单变更，写回工作区清单（工作区是持久化的那一份）
+watch(
+  () => project.state.project.value.files.map((f) => [f.path, f.label, f.source, f.target, f.output].join("|")).join(";"),
+  () => {
+    const model = ws.model.value;
+    if (!ws.ready.value || !model) return;
+    model.files = project.state.project.value.files.map((f) => ({
+      path: f.path,
+      label: f.label,
+      source: f.source,
+      target: f.target,
+      output: f.output ?? null,
+      keys_json: (f as unknown as { keys_json?: string | null }).keys_json ?? null,
+    }));
+  },
+);
 const glossary = useGlossary(projectFile);
 const mt = useMt(projectFile);
 const vcs = useVcs(projectFile, activeDocument);
@@ -141,9 +192,6 @@ function applySettings(d: SettingsDraft) {
   applySkin();
   savePrefs();
 }
-
-/** 演示工程目录（普通文件访问用）。 */
-const DEMO_FOLDER = "D:/示例/斯托科夫战役";
 
 /** 小窗（没打开项目）与主窗（打开了）两套尺寸，照 JetBrains 换窗的做法。 */
 const WELCOME_SIZE = { w: 1100, h: 760 };
@@ -272,10 +320,12 @@ onMounted(async () => {
     if (pane === "explorer" || pane === "filters" || pane === "locales" || pane === "glossary" || pane === "scm") {
       activity.value = pane;
     }
-    // 打开一个普通文件：?file=<相对路径>
+    // 工作区：?folder=1 打开演示工程；?file=<相对路径> 再打开其中一个文件
+    if (params.has("folder") || params.has("file")) {
+      await openFolderFlow(DEMO_FOLDER);
+    }
     if (params.has("file")) {
-      await files.scan(DEMO_FOLDER);
-      await files.open(params.get("file") ?? "");
+      await onTreeOpen(params.get("file") ?? "");
     }
 
     // 背景图像（截图用）：?bg=<url>&bgop=40&bgplace=center
@@ -295,8 +345,6 @@ onMounted(async () => {
     if (params.has("help")) helpOpen.value = true;
     // 只加载「最近的项目」而不打开任何文件 —— 用来截开始页
     if (params.has("recent")) await project.refreshRecents();
-    // 演示工程目录（普通文件访问用）
-    if (params.has("folder") || params.has("file")) await files.scan(DEMO_FOLDER);
     if (params.has("demo")) {
       await project.openPath(DEMO_ARCHIVE);
       if (params.has("project")) await project.openProject("D:/示例/斯托科夫战役.sc2transproj");
@@ -575,9 +623,9 @@ function onKeydown(event: KeyboardEvent) {
               v-if="activity === 'explorer'"
               :project="project"
               :menu="menu"
-              :tree="files.tree.value"
-              :active-path="files.active.value?.path"
-              @open="files.open"
+              :tree="ws.tree.value"
+              :active-path="ws.active.value?.path"
+              @open="onTreeOpen"
             />
             <FilterPane v-else-if="activity === 'filters'" :project="project" :menu="menu" />
             <LocalePane v-else-if="activity === 'locales'" :project="project" :menu="menu" />
@@ -612,19 +660,18 @@ function onKeydown(event: KeyboardEvent) {
             >
               <div slot="start" class="pane">
                 <TextViewer
-                  v-if="files.active.value?.kind === 'text'"
-                  :file="files.active.value"
-                  :dirty="files.dirty.value"
-                  @edit="files.markEdited"
+                  v-if="ws.active.value?.kind === 'text'"
+                  :file="ws.active.value"
+                  @edit="() => (ws.active.value ? (ws.active.value as { edited?: boolean }).edited = true : undefined)"
                 />
                 <ImageViewer
-                  v-else-if="files.active.value?.kind === 'image'"
-                  :file="files.active.value"
-                  :root="files.root.value"
+                  v-else-if="ws.active.value?.kind === 'image'"
+                  :file="ws.active.value"
+                  :root="ws.root.value"
                 />
                 <UnsupportedPane
-                  v-else-if="files.active.value?.kind === 'binary'"
-                  :file="files.active.value"
+                  v-else-if="ws.active.value?.kind === 'binary'"
+                  :file="ws.active.value"
                   @reveal="project.revealOutput"
                 />
                 <WorkspacePane
@@ -684,9 +731,9 @@ function onKeydown(event: KeyboardEvent) {
       :recents="s.recents.value"
       :dropping="dropping"
       :version="info?.version"
-      @open="project.openArchive"
-      @create="project.openArchive"
-      @pick="project.openPath"
+      @open="openFolderFlow()"
+      @create="openFolderFlow()"
+      @pick="openFolderFlow"
       @forget="project.forgetRecent"
       @settings="settingsPage = 'appearance'; settingsOpen = true"
       @help="helpOpen = true"

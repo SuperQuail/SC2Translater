@@ -31,6 +31,23 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
 // 演示模式：造一份够大的样本，让表格、过滤、编辑都能在浏览器里真跑一遍
 // --------------------------------------------------------------------------- //
 
+/** 演示用的工程根（工作区模式）。 */
+export const DEMO_FOLDER = "D:/示例/斯托科夫战役";
+
+/** 最近打开的文件夹（照参考图的规模：十来条、长短路径混合、有一条失效）。 */
+const DEMO_RECENTS = [
+  { path: "D:/Code/SC2/斯托科夫战役", name: "斯托科夫战役", opened_at: "2026-10-09T10:00:00Z", files: 3 },
+  { path: "D:/Code/SC2/星际枢纽汉化", name: "星际枢纽汉化", opened_at: "2026-10-09T09:00:00Z", files: 12 },
+  { path: "D:/Code/SC2/SCMR 复刻战役", name: "SCMR 复刻战役", opened_at: "2026-10-08T18:00:00Z", files: 46 },
+  { path: "D:/Code/SC2/CoopCommanderPatch", name: "CoopCommanderPatch", opened_at: "2026-10-08T12:00:00Z", files: 8 },
+  { path: "D:/Game/BLZ/StarCraft II/Maps/Campaign/swarm", name: "swarm", opened_at: "2026-10-07T20:00:00Z", files: 27 },
+  { path: "D:/Code/SC2/Miya_Craft", name: "Miya_Craft", opened_at: "2026-10-06T15:00:00Z", files: 5 },
+  { path: "D:/Code/SC2/TestCode_01", name: "TestCode_01", opened_at: "2026-10-05T11:00:00Z", files: 2 },
+  { path: "D:/Code/SC2/MDK-1.21.1-NeoGradle-main", name: "MDK-1.21.1-NeoGradle-main", opened_at: "2026-10-04T09:00:00Z", files: 0 },
+  { path: "D:/Code/SC2/ExampleMod-master (1)", name: "ExampleMod-master (1)", opened_at: "2026-10-03T09:00:00Z", files: 0 },
+  { path: "E:/外接盘/PythonInstallJava", name: "PythonInstallJava", opened_at: "2026-10-02T09:00:00Z", files: -1 },
+];
+
 /** 演示工程目录：混着放 SC2 文档、文本、图片和打不开的二进制。 */
 const DEMO_TREE = [
   { path: "Maps/Stukov2.SC2Map", kind: "sc2" as const, size: 902586, linked_json: "Maps/Stukov2.json" },
@@ -220,7 +237,39 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
     case "pick_image":
       return "D:/Pic/miku/1.png";
     case "scan_folder":
+    case "workspace_scan":
       return DEMO_TREE;
+    case "pick_folder":
+      return DEMO_FOLDER;
+    case "workspace_load":
+      return {
+        workspace: {
+          format: 1,
+          name: "斯托科夫战役",
+          defaults: { source: "enUS", target: "zhCN" },
+          files: [
+            { path: "Maps/Stukov2.SC2Map", label: "Stukov2 关卡", source: "enUS", target: "zhCN", output: null, keys_json: "Maps/Stukov2.json" },
+            { path: "Maps/Stukov3.SC2Map", label: "Stukov3 关卡", source: "enUS", target: "zhCN", output: null, keys_json: null },
+            { path: "Mods/SCMR.SC2Mod", label: "SCMR", source: "enUS", target: "zhTW", output: null, keys_json: null },
+          ],
+          open: ["Maps/Stukov2.SC2Map"],
+          active: 0,
+          view: {},
+          created_at: "2026-10-09T00:00:00Z",
+          updated_at: "2026-10-09T00:00:00Z",
+        },
+        legacy_projects: [],
+        stats: {},
+      };
+    case "workspace_save":
+    case "workspace_save_stats":
+      return { ok: true };
+    case "workspace_migrate":
+      return { workspace: { format: 1, name: "迁移后的工程", defaults: { source: "enUS", target: "zhCN" }, files: [], open: [], active: 0, view: {}, created_at: "", updated_at: "" }, outside: [] };
+    case "recent_folders":
+    case "recent_touch":
+    case "forget_folder":
+      return { items: DEMO_RECENTS };
     case "open_file": {
       const path = String(args?.path ?? "");
       const entry = DEMO_TREE.find((f) => f.path === path) ?? DEMO_TREE[0];
@@ -244,21 +293,7 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
     case "pick_archives":
       return [DEMO_ARCHIVE, DEMO_ARCHIVE.replace("Stukov2", "Stukov3"), DEMO_ARCHIVE.replace("Stukov2", "ZergX03")];
     case "recent_projects":
-      // 演示数据：规模照参考图（十来条、长短路径混合、有一条失效）
-      return {
-        items: [
-          { path: "D:/Code/SC2/斯托科夫战役", name: "斯托科夫战役", opened_at: "2026-10-09T10:00:00Z", files: 3 },
-          { path: "D:/Code/SC2/星际枢纽汉化", name: "星际枢纽汉化", opened_at: "2026-10-09T09:00:00Z", files: 12 },
-          { path: "D:/Code/SC2/SCMR 复刻战役", name: "SCMR 复刻战役", opened_at: "2026-10-08T18:00:00Z", files: 46 },
-          { path: "D:/Code/SC2/CoopCommanderPatch", name: "CoopCommanderPatch", opened_at: "2026-10-08T12:00:00Z", files: 8 },
-          { path: "D:/Game/BLZ/StarCraft II/Maps/Campaign/swarm", name: "swarm", opened_at: "2026-10-07T20:00:00Z", files: 27 },
-          { path: "D:/Code/SC2/Miya_Craft", name: "Miya_Craft", opened_at: "2026-10-06T15:00:00Z", files: 5 },
-          { path: "D:/Code/SC2/TestCode_01", name: "TestCode_01", opened_at: "2026-10-05T11:00:00Z", files: 2 },
-          { path: "D:/Code/SC2/MDK-1.21.1-NeoGradle-main", name: "MDK-1.21.1-NeoGradle-main", opened_at: "2026-10-04T09:00:00Z", files: 0 },
-          { path: "D:/Code/SC2/ExampleMod-master (1)", name: "ExampleMod-master (1)", opened_at: "2026-10-03T09:00:00Z", files: 0 },
-          { path: "E:/外接盘/PythonInstallJava", name: "PythonInstallJava", opened_at: "2026-10-02T09:00:00Z", files: -1 },
-        ],
-      };
+      return { items: DEMO_RECENTS };
     case "forget_project":
       return null;
     case "pick_project_save":

@@ -90,6 +90,15 @@ fn default_source() -> String {
     "enUS".to_string()
 }
 
+/// 给别的模块用的同名默认值（serde 的 default 只能指向本模块函数）。
+pub fn default_source_pub() -> String {
+    default_source()
+}
+
+pub fn default_target_pub() -> String {
+    default_target()
+}
+
 fn default_target() -> String {
     "zhCN".to_string()
 }
@@ -312,16 +321,25 @@ pub const RECENT_LIMIT: usize = 12;
 
 impl RecentProjects {
     pub fn load(dir: &Path) -> Self {
-        let file = dir.join("recent-projects.json");
+        Self::load_named(dir, "recent-projects.json")
+    }
+
+    pub fn save(&self, dir: &Path) -> Result<()> {
+        self.save_named(dir, "recent-projects.json")
+    }
+
+    /// 指定文件名读写 —— 工作区改造后最近列表换成 recent-folders.json。
+    pub fn load_named(dir: &Path, name: &str) -> Self {
+        let file = dir.join(name);
         std::fs::read_to_string(&file)
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default()
     }
 
-    pub fn save(&self, dir: &Path) -> Result<()> {
+    pub fn save_named(&self, dir: &Path, name: &str) -> Result<()> {
         std::fs::create_dir_all(dir)?;
-        std::fs::write(dir.join("recent-projects.json"), serde_json::to_string_pretty(self)?)?;
+        std::fs::write(dir.join(name), serde_json::to_string_pretty(self)?)?;
         Ok(())
     }
 
