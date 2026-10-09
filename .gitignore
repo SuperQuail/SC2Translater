@@ -25,6 +25,9 @@ __pycache__/
 /artifacts/
 *.log
 
+# 参考图 / 参考素材（别人的界面截图，含别人的真实目录结构，不入库）
+/refs/
+
 # 编辑器 / 系统
 Thumbs.db
 desktop.ini
