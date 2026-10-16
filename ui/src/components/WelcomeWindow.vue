@@ -12,7 +12,13 @@ import { avatarColor, isTauri, projectInitials } from "../api";
 import type { RecentEntry } from "../api/types";
 import Icon from "./Icon.vue";
 
-const props = defineProps<{ recents: RecentEntry[]; dropping?: boolean; version?: string }>();
+const props = defineProps<{
+  recents: RecentEntry[];
+  dropping?: boolean;
+  version?: string;
+  /** 打开文件夹失败 / 没找到地图之类的反馈 —— 不给反馈用户只会以为程序坏了。 */
+  status?: string;
+}>();
 const emit = defineEmits<{
   (e: "open"): void;
   (e: "create"): void;
@@ -110,6 +116,8 @@ function rowMenu(entry: RecentEntry) {
           <!-- @ts-expect-error 自定义元素 -->
           <vscode-button secondary icon="folder-opened" @click="emit('open')">打开</vscode-button>
         </div>
+
+        <div v-if="props.status" class="notice">{{ props.status }}</div>
 
         <div class="list">
           <div
@@ -293,4 +301,15 @@ function rowMenu(entry: RecentEntry) {
 .more:hover { background: var(--jb-hover); color: var(--jb-text); }
 
 .empty { padding: 24px 12px; font-size: 13px; line-height: 1.8; color: var(--jb-hint); }
+
+.notice {
+  margin: 0 20px 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--jb-line);
+  border-left: 2px solid var(--jb-main);
+  border-radius: 4px;
+  background: var(--jb-panel);
+  color: var(--jb-text);
+  font-size: 13px;
+}
 </style>

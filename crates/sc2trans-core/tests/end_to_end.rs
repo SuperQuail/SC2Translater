@@ -131,6 +131,45 @@ fn seed_completes_coverage_and_preserves_other_components() {
     assert_eq!(zh.get("DocInfo/Name").unwrap().value, "统治");
 }
 
+/// 源语言里值就是空的键，也要补进目标语言。
+///
+/// 不补的话，中文下这些键会显示成 "Button/EditorPrefix/LongSpine" 这种键路径 ——
+/// 这正是本工具要消灭的东西。（真实数据上踩到过：一个 mod 有 29 个这种键一直露着路径。）
+#[test]
+fn seed_fills_keys_whose_source_value_is_empty() {
+    let dir = tmp("seed-empty");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("empty.SC2Map");
+
+    let mut en = StringFile::default();
+    en.set("DocInfo/Name", "Domination");
+    en.set("Button/EditorPrefix/LongSpine", ""); // 原文就是空值
+    let mut zh = StringFile::default();
+    zh.set("DocInfo/Name", "统治");
+
+    let entries = vec![
+        ("MapInfo".to_string(), b"<MapInfo/>".to_vec()),
+        ("enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), en.to_bytes()),
+        ("zhCN.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), zh.to_bytes()),
+    ];
+    build_document(&entries, &path, &BuildOptions::default()).unwrap();
+
+    let out = dir.join("empty-seeded.SC2Map");
+    let result = ops::seed(&path, "enUS", "zhCN", &ApplyOptions { out: Some(out.clone()), ..Default::default() })
+        .unwrap();
+    assert!(result.ok, "回读校验应当通过: {result:?}");
+
+    let after = Archive::open(&out).unwrap();
+    let zh2 =
+        StringFile::parse(&after.read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt").unwrap(), "zh").unwrap();
+    assert!(
+        zh2.contains("Button/EditorPrefix/LongSpine"),
+        "空值键也要补进去，否则游戏里显示键路径"
+    );
+    assert_eq!(zh2.get("Button/EditorPrefix/LongSpine").unwrap().value, "");
+    assert_eq!(zh2.get("DocInfo/Name").unwrap().value, "统治", "已有的中文不能被空值或英文覆盖");
+}
+
 #[test]
 fn apply_writes_translations_and_keeps_original_comment() {
     let src = fixture(&tmp("apply"));

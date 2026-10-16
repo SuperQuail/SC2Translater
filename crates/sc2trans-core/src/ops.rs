@@ -774,13 +774,15 @@ pub fn fill_locales(
             let before = table.key_set();
             let mut wanted: BTreeSet<String> = BTreeSet::new();
             for pair in source_table.pairs() {
-                if pair.value.is_empty() {
-                    continue; // 源语言里是空值就跳过，免得把空串铺满
-                }
-                if only_missing && table.contains(&pair.key) {
+                let existing = table.contains(&pair.key);
+                if existing && (only_missing || pair.value.is_empty()) {
+                    // 已有内容：只缺补模式不动它；源里是空值也**绝不**用空串覆盖 —— 那会抹掉译文
                     continue;
                 }
-                if with_original {
+                // 缺失的键即使是空值也要写进去：
+                // 游戏里显示空串，总比显示 "Button/EditorPrefix/xxx" 这种键路径好。
+                // （早先这里把空值整个跳过，结果 29 个这种键在中文下一直露着键路径。）
+                if with_original && !pair.value.is_empty() {
                     table.set_full(&pair.key, &pair.value, Some(pair.value.as_str()));
                 } else {
                     table.set(&pair.key, &pair.value);
@@ -790,7 +792,7 @@ pub fn fill_locales(
             // Base 的同名表也当兜底来源（Base 任何语言都加载，所以只补缺的键）
             if let Some(base_table) = base.get(filename) {
                 for pair in base_table.pairs() {
-                    if table.contains(&pair.key) || pair.value.is_empty() {
+                    if table.contains(&pair.key) {
                         continue;
                     }
                     table.set(&pair.key, &pair.value);

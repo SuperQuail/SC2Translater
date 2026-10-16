@@ -249,11 +249,9 @@ function demoInvoke(cmd: string, args?: Record<string, unknown>): unknown {
           format: 1,
           name: "斯托科夫战役",
           defaults: { source: "enUS", target: "zhCN" },
-          files: [
-            { path: "Maps/Stukov2.SC2Map", label: "Stukov2 关卡", source: "enUS", target: "zhCN", output: null, keys_json: "Maps/Stukov2.json" },
-            { path: "Maps/Stukov3.SC2Map", label: "Stukov3 关卡", source: "enUS", target: "zhCN", output: null, keys_json: null },
-            { path: "Mods/SCMR.SC2Mod", label: "SCMR", source: "enUS", target: "zhTW", output: null, keys_json: null },
-          ],
+          // 故意给空清单：这正是「刚建的工作区 / 别人发来的文件夹」的真实状态。
+          // 打开它必须能自动把扫到的地图收进来并进编辑页面 —— 这就是「进不去项目」那个 bug 的复现条件。
+          files: [],
           open: ["Maps/Stukov2.SC2Map"],
           active: 0,
           view: {},

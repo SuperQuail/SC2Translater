@@ -64,24 +64,58 @@ async function onTreeOpen(rel: string) {
   await ws.open(rel);
 }
 
-/** 打开文件夹：读工作区 -> 扫目录 -> 把文件清单灌进编辑会话。 */
+/** 文件名去掉扩展名，当标签用。 */
+function labelOf(path: string): string {
+  const base = path.split(/[\\/]/).pop() ?? path;
+  return base.replace(/\.[^.]+$/, "");
+}
+
+/**
+ * 打开文件夹：读工作区 -> 扫目录 -> **进编辑页面**。
+ *
+ * ⚠️ 关键：外壳（活动栏 / 资源管理器 / 工作区）是 v-if="s.doc.value" 控制的，
+ * 只填清单不开文档，界面会一直停在小窗 —— 「新建/打开项目都进不去」的根因就在这。
+ * 所以这个函数**必须落到「打开一个文档」**，并且没有文档时要说清楚为什么。
+ */
 async function openFolderFlow(path?: string) {
   const root = path ? await ws.load(path) : await ws.openFolder();
   if (!root) return;
   project.setRoot(root);
   // 项目术语库跟着工作区走：<根>/.sc2translater/glossary.json
   project.state.projectPath.value = root.replace(/[\\/]$/, "") + "/.sc2translater/workspace.json";
-  const list = ws.model.value?.files ?? [];
-  if (list.length) {
-    const s = project.state;
-    s.project.value = {
-      ...s.project.value,
-      name: ws.name.value || s.project.value.name,
-      files: list.map((f) => ({ ...f, stats: null })) as typeof s.project.value.files,
-      active: 0,
-    };
-    await project.selectFile(0);
+  await loadRecentFolders();
+
+  const model = ws.model.value;
+  // 第一次打开这个文件夹：把扫到的 SC2 文档收进工作区（清单空着就永远进不去）
+  if (model && model.files.length === 0) {
+    const maps = ws.tree.value.filter((f) => f.kind === "sc2");
+    const preserved = new Map(model.files.map((f) => [f.path, f.keys_json ?? null]));
+    for (const m of maps) {
+      model.files.push({
+        path: m.path,
+        label: labelOf(m.path),
+        source: model.defaults?.source || "enUS",
+        target: model.defaults?.target || "zhCN",
+        output: null,
+        keys_json: m.linked_json ?? preserved.get(m.path) ?? null,
+      });
+    }
+    if (maps.length) await ws.save();
   }
+
+  const list = ws.model.value?.files ?? [];
+  if (!list.length) {
+    ws.status.value = "这个文件夹里没有找到 .SC2Map / .SC2Mod —— 选一个放着地图的目录再试";
+    return;
+  }
+  const st = project.state;
+  st.project.value = {
+    ...st.project.value,
+    name: ws.name.value || st.project.value.name,
+    files: list.map((f) => ({ ...f, stats: null })) as typeof st.project.value.files,
+    active: 0,
+  };
+  await project.selectFile(0);
   await glossary.refresh();
 }
 
@@ -91,13 +125,15 @@ watch(
   () => {
     const model = ws.model.value;
     if (!ws.ready.value || !model) return;
+    // keys_json 不在编辑会话里，回写时要按路径把它保住，别清掉
+    const preserved = new Map(model.files.map((f) => [f.path, f.keys_json ?? null]));
     model.files = project.state.project.value.files.map((f) => ({
       path: f.path,
       label: f.label,
       source: f.source,
       target: f.target,
       output: f.output ?? null,
-      keys_json: (f as unknown as { keys_json?: string | null }).keys_json ?? null,
+      keys_json: preserved.get(f.path) ?? null,
     }));
   },
 );
@@ -351,7 +387,8 @@ onMounted(async () => {
     }
     // 工作区：?folder=1 打开演示工程；?file=<相对路径> 再打开其中一个文件
     if (params.has("folder") || params.has("file")) {
-      await openFolderFlow(DEMO_FOLDER);
+      const f = params.get("folder");
+      await openFolderFlow(!f || f === "1" ? DEMO_FOLDER : f);
     }
     if (params.has("file")) {
       await onTreeOpen(params.get("file") ?? "");
@@ -778,6 +815,7 @@ function onKeydown(event: KeyboardEvent) {
       :recents="recentFolders"
       :dropping="dropping"
       :version="info?.version"
+      :status="ws.status.value || ws.error.value"
       @open="openFolderFlow()"
       @create="openFolderFlow()"
       @pick="openFolderFlow"
