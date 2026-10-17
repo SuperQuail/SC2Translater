@@ -97,10 +97,17 @@ fix: 空值键没被补齐 + 打开文件夹进不去编辑页面
 | 必须解决所有对话 | 有未解决的 review 评论就不能合 |
 | 线性历史 | 不允许 merge commit |
 | 禁止强推 / 禁止删除 | `main` 只能往前走 |
-| 管理员可绕过 | 紧急修复用，用完请补 PR 说明 |
+
+**没有绕过通道** —— 连仓库管理员也不能直接推 `main`（实测被拒：
+`GH013: Repository rule violations found for refs/heads/main`）。
+所以「忘了开 PR」这条路是物理上不存在的。
 
 > 本仓库目前是单人维护，所以**不要求 review 批准**（要求了会把自己锁在外面）。
 > 有第二位维护者之后，把 ruleset 里的 `required_approving_review_count` 调成 1。
+>
+> 规则集在 <https://github.com/SuperQuail/SC2Translater/rules>。
+> 万一 CI 永远绿不了：改 CI 的 PR 用的是 **PR 自己的** 工作流文件，所以修 CI 的 PR 能正常跑；
+> 只有把作业**改名**才会让必需检查对不上 —— 改名时记得同步规则集里的检查名。
 
 ---
 
