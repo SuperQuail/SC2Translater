@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
         with:
@@ -57,7 +57,7 @@ jobs:
     # 目标平台是 Windows，且 workspace 含 src-tauri（Tauri 在 Linux 上要另装 webkit 依赖）。
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v4
         with:
