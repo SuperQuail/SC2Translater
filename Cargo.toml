@@ -16,7 +16,7 @@ sc2mpq = { path = "crates/sc2mpq" }
 sc2trans-core = { path = "crates/sc2trans-core" }
 
 anyhow = "1"
-bzip2 = "0.4"
+bzip2 = "0.6"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 crc32fast = "1"
 flate2 = "1"
