@@ -16,31 +16,6 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  rust:
-    name: Rust（格式 / 静态检查 / 测试）
-    # 目标平台是 Windows，而且 workspace 里有 src-tauri（Tauri 在 Linux 上要额外装 webkit 依赖），
-    # 所以直接跑 Windows，省掉一套只为 CI 存在的配置。
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.94.0"
-          components: rustfmt, clippy
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: cargo fmt --check
-        run: cargo fmt --all -- --check
-
-      - name: cargo clippy
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: cargo test
-        # 真实归档样本不入库，相关用例会自己跳过
-        run: cargo test --workspace
-
   ui:
     name: 前端（构建 / 测试）
     runs-on: ubuntu-latest
@@ -67,3 +42,41 @@ jobs:
 
       - name: pnpm test
         run: pnpm test
+
+      # Rust 那边编译 src-tauri 时会读 ui/dist：custom-protocol 要把它内嵌进 exe，
+      # 没有这个目录 tauri 的 build script 直接报错。
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+
+  rust:
+    name: Rust（格式 / 静态检查 / 测试）
+    needs: ui
+    # 目标平台是 Windows，且 workspace 含 src-tauri（Tauri 在 Linux 上要另装 webkit 依赖）。
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.94.0"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        # 真实归档样本不入库，相关用例会自己跳过
+        run: cargo test --workspace
