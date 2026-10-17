@@ -141,7 +141,11 @@ impl MtEngine {
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
-        Self { config, cache_path, cache }
+        Self {
+            config,
+            cache_path,
+            cache,
+        }
     }
 
     fn cache_key(&self, text: &str) -> String {
@@ -243,9 +247,9 @@ impl MtEngine {
             .send_json(body);
 
         let value: serde_json::Value = match response {
-            Ok(resp) => resp.into_json().map_err(|e| {
-                CoreError::Invalid(format!("机翻接口返回的不是 JSON：{e}"))
-            })?,
+            Ok(resp) => resp
+                .into_json()
+                .map_err(|e| CoreError::Invalid(format!("机翻接口返回的不是 JSON：{e}")))?,
             Err(ureq::Error::Status(code, resp)) => {
                 let detail = resp.into_string().unwrap_or_default();
                 let brief: String = detail.chars().take(200).collect();
@@ -313,7 +317,8 @@ fn offline_assemble(text: &str, terms: &[Term]) -> Suggestion {
     }
 
     let note = if terms.is_empty() {
-        "离线模式：这句话没有命中任何术语，下面是原文（想看真正的机翻请到「机翻设置」里配在线接口）".to_string()
+        "离线模式：这句话没有命中任何术语，下面是原文（想看真正的机翻请到「机翻设置」里配在线接口）"
+            .to_string()
     } else {
         format!("离线模式：只替换了命中的 {replaced} 个术语，其余保持英文 —— 术语是对的，语序还得你自己来")
     };
@@ -338,7 +343,8 @@ mod tests {
         let _ = std::fs::remove_file(dir.join(MT_CACHE_FILE));
         let engine = MtEngine::new(MtConfig::default(), &dir);
         let mut pair = GlossaryPair::default();
-        pair.global.upsert(Term::new("Infested Terran", "被感染的陆战队员", Scope::Global));
+        pair.global
+            .upsert(Term::new("Infested Terran", "被感染的陆战队员", Scope::Global));
         pair.global.upsert(Term::new("Hive", "主巢", Scope::Global));
         (engine, pair)
     }
@@ -346,7 +352,9 @@ mod tests {
     #[test]
     fn offline_replaces_matched_terms_only() {
         let (mut e, pair) = engine();
-        let s = e.translate("Destroy the Hive with Infested Terran", &pair).unwrap();
+        let s = e
+            .translate("Destroy the Hive with Infested Terran", &pair)
+            .unwrap();
         assert_eq!(s.text, "Destroy the 主巢 with 被感染的陆战队员");
         assert_eq!(s.terms.len(), 2);
         assert!(s.note.contains("离线"));

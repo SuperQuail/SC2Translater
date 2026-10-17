@@ -38,9 +38,18 @@ fn build_fixture(path: &Path) {
     let entries = vec![
         ("Base.SC2Data\\GameData\\UnitData.xml".to_string(), binary),
         ("MapInfo".to_string(), b"<MapInfo/>".to_vec()),
-        ("enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), en.to_bytes()),
-        ("enUS.SC2Data\\LocalizedData\\ObjectStrings.txt".to_string(), en_obj.to_bytes()),
-        ("zhCN.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), zh.to_bytes()),
+        (
+            "enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(),
+            en.to_bytes(),
+        ),
+        (
+            "enUS.SC2Data\\LocalizedData\\ObjectStrings.txt".to_string(),
+            en_obj.to_bytes(),
+        ),
+        (
+            "zhCN.SC2Data\\LocalizedData\\GameStrings.txt".to_string(),
+            zh.to_bytes(),
+        ),
     ];
     let info = build_document(&entries, path, &BuildOptions::default()).expect("构造夹具失败");
     assert!(info.bytes > 0);
@@ -87,7 +96,10 @@ fn audit_shows_low_coverage_for_target() {
     let report = ops::audit(&src, "enUS").unwrap();
     assert_eq!(report["source_keys"], 6);
     let rows = report["locales"].as_array().unwrap();
-    let zhcn = rows.iter().find(|r| r["locale"] == "zhCN").expect("应当有 zhCN 行");
+    let zhcn = rows
+        .iter()
+        .find(|r| r["locale"] == "zhCN")
+        .expect("应当有 zhCN 行");
     assert_eq!(zhcn["keys_expected"], 6);
     assert_eq!(zhcn["keys_present"], 1);
     assert_eq!(zhcn["keys_missing"], 5);
@@ -98,15 +110,29 @@ fn audit_shows_low_coverage_for_target() {
 fn seed_completes_coverage_and_preserves_other_components() {
     let src = fixture(&tmp("seed"));
     let out = tmp("seed").join("seeded.SC2Map");
-    let result = ops::seed(&src, "enUS", "zhCN", &ApplyOptions { out: Some(out.clone()), ..Default::default() })
-        .unwrap();
+    let result = ops::seed(
+        &src,
+        "enUS",
+        "zhCN",
+        &ApplyOptions {
+            out: Some(out.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(result.ok, "回读校验应当通过: {result:?}");
 
     // 补完之后：zhCN 不再缺键，且已有的中文不被英文覆盖
     let after = ops::extract(&out, "enUS", "zhCN", None, false).unwrap();
     assert_eq!(after.stats.by_status.get(STATUS_MISSING).copied().unwrap_or(0), 0);
-    assert_eq!(after.stats.by_status.get(STATUS_IDENTICAL).copied().unwrap_or(0), 5);
-    assert_eq!(after.stats.by_status.get(STATUS_TRANSLATED).copied().unwrap_or(0), 1);
+    assert_eq!(
+        after.stats.by_status.get(STATUS_IDENTICAL).copied().unwrap_or(0),
+        5
+    );
+    assert_eq!(
+        after.stats.by_status.get(STATUS_TRANSLATED).copied().unwrap_or(0),
+        1
+    );
 
     // 未改动的组件必须逐字节相同
     let before_arc = Archive::open(&src).unwrap();
@@ -120,14 +146,25 @@ fn seed_completes_coverage_and_preserves_other_components() {
     }
 
     // zhCN.ObjectStrings 原本不存在，seed 应当把它建出来，并沿用源文件的 BOM + CRLF
-    let created = after_arc.read("zhCN.SC2Data\\LocalizedData\\ObjectStrings.txt").unwrap();
+    let created = after_arc
+        .read("zhCN.SC2Data\\LocalizedData\\ObjectStrings.txt")
+        .unwrap();
     let table = StringFile::parse(&created, "zhCN ObjectStrings").unwrap();
     assert!(table.bom);
     assert_eq!(table.newline, Newline::Crlf);
-    assert_eq!(table.get("Unit/EditorSuffix/Purifier").unwrap().value, "Mothership");
+    assert_eq!(
+        table.get("Unit/EditorSuffix/Purifier").unwrap().value,
+        "Mothership"
+    );
 
     // 中文标题不能被覆盖
-    let zh = StringFile::parse(&after_arc.read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt").unwrap(), "zh").unwrap();
+    let zh = StringFile::parse(
+        &after_arc
+            .read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt")
+            .unwrap(),
+        "zh",
+    )
+    .unwrap();
     assert_eq!(zh.get("DocInfo/Name").unwrap().value, "统治");
 }
 
@@ -149,25 +186,48 @@ fn seed_fills_keys_whose_source_value_is_empty() {
 
     let entries = vec![
         ("MapInfo".to_string(), b"<MapInfo/>".to_vec()),
-        ("enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), en.to_bytes()),
-        ("zhCN.SC2Data\\LocalizedData\\GameStrings.txt".to_string(), zh.to_bytes()),
+        (
+            "enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(),
+            en.to_bytes(),
+        ),
+        (
+            "zhCN.SC2Data\\LocalizedData\\GameStrings.txt".to_string(),
+            zh.to_bytes(),
+        ),
     ];
     build_document(&entries, &path, &BuildOptions::default()).unwrap();
 
     let out = dir.join("empty-seeded.SC2Map");
-    let result = ops::seed(&path, "enUS", "zhCN", &ApplyOptions { out: Some(out.clone()), ..Default::default() })
-        .unwrap();
+    let result = ops::seed(
+        &path,
+        "enUS",
+        "zhCN",
+        &ApplyOptions {
+            out: Some(out.clone()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(result.ok, "回读校验应当通过: {result:?}");
 
     let after = Archive::open(&out).unwrap();
-    let zh2 =
-        StringFile::parse(&after.read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt").unwrap(), "zh").unwrap();
+    let zh2 = StringFile::parse(
+        &after
+            .read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt")
+            .unwrap(),
+        "zh",
+    )
+    .unwrap();
     assert!(
         zh2.contains("Button/EditorPrefix/LongSpine"),
         "空值键也要补进去，否则游戏里显示键路径"
     );
     assert_eq!(zh2.get("Button/EditorPrefix/LongSpine").unwrap().value, "");
-    assert_eq!(zh2.get("DocInfo/Name").unwrap().value, "统治", "已有的中文不能被空值或英文覆盖");
+    assert_eq!(
+        zh2.get("DocInfo/Name").unwrap().value,
+        "统治",
+        "已有的中文不能被空值或英文覆盖"
+    );
 }
 
 #[test]
@@ -184,13 +244,21 @@ fn apply_writes_translations_and_keeps_original_comment() {
     let result = ops::apply(
         &src,
         &raw,
-        &ApplyOptions { out: Some(out.clone()), target_locale: Some("zhCN".into()), with_original: true, ..Default::default() },
+        &ApplyOptions {
+            out: Some(out.clone()),
+            target_locale: Some("zhCN".into()),
+            with_original: true,
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(result.ok);
 
     let table = StringFile::parse(
-        &Archive::open(&out).unwrap().read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt").unwrap(),
+        &Archive::open(&out)
+            .unwrap()
+            .read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt")
+            .unwrap(),
         "zh",
     )
     .unwrap();
@@ -207,12 +275,19 @@ fn apply_accepts_flat_json() {
     let result = ops::apply(
         &src,
         &raw,
-        &ApplyOptions { out: Some(out.clone()), target_locale: Some("zhCN".into()), ..Default::default() },
+        &ApplyOptions {
+            out: Some(out.clone()),
+            target_locale: Some("zhCN".into()),
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(result.ok);
     let table = StringFile::parse(
-        &Archive::open(&out).unwrap().read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt").unwrap(),
+        &Archive::open(&out)
+            .unwrap()
+            .read("zhCN.SC2Data\\LocalizedData\\GameStrings.txt")
+            .unwrap(),
         "zh",
     )
     .unwrap();
@@ -223,10 +298,20 @@ fn apply_accepts_flat_json() {
 fn apply_refuses_to_overwrite_input_without_force() {
     let src = fixture(&tmp("refuse"));
     let raw = json!({ "DocInfo/Name": "x" });
-    let opts = ApplyOptions { out: Some(src.clone()), target_locale: Some("zhCN".into()), ..Default::default() };
-    assert!(ops::apply(&src, &raw, &opts).is_err(), "不应当允许静默覆盖输入文件");
+    let opts = ApplyOptions {
+        out: Some(src.clone()),
+        target_locale: Some("zhCN".into()),
+        ..Default::default()
+    };
+    assert!(
+        ops::apply(&src, &raw, &opts).is_err(),
+        "不应当允许静默覆盖输入文件"
+    );
     let opts_force = ApplyOptions { force: true, ..opts };
-    assert!(ops::apply(&src, &raw, &opts_force).is_ok(), "加了 force 就应当允许");
+    assert!(
+        ops::apply(&src, &raw, &opts_force).is_ok(),
+        "加了 force 就应当允许"
+    );
 }
 
 #[test]

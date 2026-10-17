@@ -314,4 +314,3 @@ pub fn file_key(name: &str, file_pos: u32, flags: u32) -> u32 {
 pub(crate) fn bad_table(msg: impl Into<String>) -> MpqError {
     MpqError::BadTable(msg.into())
 }
-

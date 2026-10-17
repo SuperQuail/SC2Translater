@@ -26,7 +26,11 @@ fn samples() -> Vec<PathBuf> {
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for e in entries.flatten() {
             let p = e.path();
-            let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
+            let ext = p
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
             if ext == "sc2map" || ext == "sc2mod" {
                 out.push(p);
             }
@@ -40,7 +44,10 @@ fn samples() -> Vec<PathBuf> {
 fn real_archives_parse_and_verify() {
     let samples = samples();
     if samples.is_empty() {
-        eprintln!("跳过：在 {} 下找不到 .SC2Map/.SC2Mod 样本", sample_dir().display());
+        eprintln!(
+            "跳过：在 {} 下找不到 .SC2Map/.SC2Mod 样本",
+            sample_dir().display()
+        );
         return;
     }
     for path in &samples {
@@ -58,14 +65,23 @@ fn real_archives_parse_and_verify() {
         assert!(r.bet_md5_valid, "{}", path.display());
         assert!(r.het_roundtrip_exact, "HET 应能逐字节重生成: {}", path.display());
         assert!(r.bet_roundtrip_exact, "BET 应能逐字节重生成: {}", path.display());
-        assert!(r.het_vs_classic_mismatch.is_empty(), "HET 与经典表结果应当一致: {:?}", r.het_vs_classic_mismatch);
+        assert!(
+            r.het_vs_classic_mismatch.is_empty(),
+            "HET 与经典表结果应当一致: {:?}",
+            r.het_vs_classic_mismatch
+        );
         assert!(r.bet_vs_blocktable_mismatch.is_empty(), "BET 与块表应当一致");
         assert!(r.bet_flag_mismatch.is_empty(), "BET flag 索引应当一致");
         // (listfile) 与 (attributes) 的 MD5 约定为全零 -> bad 恒为 2；后者 CRC 约定为 0 -> bad 恒为 1
         assert_eq!(r.md5_bad, 2, "{}", path.display());
         assert_eq!(r.crc_bad, 1, "{}", path.display());
         // 暴雪原件在 0x6C 写的是 v4 才有的 16384 —— 这正是「编辑器拒收任何改动」的根因
-        assert_eq!(arc.raw_chunk_size, 16384, "原件应当带这个自相矛盾的值: {}", path.display());
+        assert_eq!(
+            arc.raw_chunk_size,
+            16384,
+            "原件应当带这个自相矛盾的值: {}",
+            path.display()
+        );
 
         // 每个列出的名字都要能读出来，且长度与块表声明一致
         for name in arc.component_names() {

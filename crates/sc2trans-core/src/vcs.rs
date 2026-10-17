@@ -102,9 +102,7 @@ pub fn locate(data_dir: &Path) -> Option<PathBuf> {
             return Some(p);
         }
     }
-    bundled_candidates()
-        .into_iter()
-        .find(|p| p.is_file())
+    bundled_candidates().into_iter().find(|p| p.is_file())
 }
 
 /// 随包资源与开发目录里的候选位置。
@@ -160,9 +158,7 @@ pub fn ensure(data_dir: &Path, bundled_dir: Option<&Path>) -> ToolStatus {
             path: None,
             source: InstallSource::Missing,
             size_bytes: 0,
-            message: Some(
-                "没找到内置的 SC2Diff —— 版本管理暂时不可用（重装本程序可以恢复）".to_string(),
-            ),
+            message: Some("没找到内置的 SC2Diff —— 版本管理暂时不可用（重装本程序可以恢复）".to_string()),
         };
     };
 
@@ -247,9 +243,8 @@ fn hide_console(cmd: &mut Command) {
 /// "-C" 只告诉它仓库在哪，而 unpack 之类是往进程当前目录写文件的。
 /// 用子进程的 current_dir 而不是改本进程的 CWD：后者是全局状态，并发会互相踩。
 pub fn run(data_dir: &Path, repo: Option<&Path>, args: &[&str]) -> Result<Output> {
-    let binary = locate(data_dir).ok_or_else(|| {
-        CoreError::Invalid("还没装 SC2Diff —— 版本管理暂时不可用".to_string())
-    })?;
+    let binary = locate(data_dir)
+        .ok_or_else(|| CoreError::Invalid("还没装 SC2Diff —— 版本管理暂时不可用".to_string()))?;
 
     let mut cmd = Command::new(&binary);
     if let Some(repo) = repo {
@@ -332,7 +327,11 @@ impl Change {
         if self.untracked() {
             return "未跟踪".to_string();
         }
-        let code = if self.staged() { self.index.chars().next().unwrap_or(' ') } else { self.worktree.chars().next().unwrap_or(' ') };
+        let code = if self.staged() {
+            self.index.chars().next().unwrap_or(' ')
+        } else {
+            self.worktree.chars().next().unwrap_or(' ')
+        };
         match code {
             'A' => "新增",
             'M' => "修改",
@@ -481,8 +480,14 @@ pub fn parse_full_log(text: &str) -> Vec<Commit> {
 /// 一个 sc2diff 仓库只跟踪一份文档（它的工作树就是那份文档的组件），
 /// 所以项目里有几个地图就有几个仓库，彼此不干扰。
 pub fn repo_dir_for(project_file: &Path, document: &Path) -> PathBuf {
-    let project_stem = project_file.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
-    let doc_stem = document.file_stem().and_then(|s| s.to_str()).unwrap_or("document");
+    let project_stem = project_file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("project");
+    let doc_stem = document
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
     let dir = project_file.parent().unwrap_or(Path::new("."));
     dir.join(format!("{project_stem}.repos")).join(doc_stem)
 }
@@ -558,7 +563,12 @@ pub fn branches(data_dir: &Path, repo: &Path) -> Result<Vec<String>> {
 /// 标签列表。
 pub fn tags(data_dir: &Path, repo: &Path) -> Result<Vec<String>> {
     let out = run_checked(data_dir, Some(repo), &["tag"])?;
-    Ok(out.stdout.lines().map(|l| l.trim().to_string()).filter(|s| !s.is_empty()).collect())
+    Ok(out
+        .stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 /// 建仓（可选导入一份文档）。
@@ -687,7 +697,8 @@ mod tests {
         // 找一份样本文档
         let samples = [
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../SC2Diff/testdata/fixture.SC2Map"),
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../SC2Diff/testdata/samples/SCORE-OtherC.SC2Mod"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../SC2Diff/testdata/samples/SCORE-OtherC.SC2Mod"),
         ];
         let Some(doc) = samples.into_iter().find(|p| p.is_file()) else {
             eprintln!("跳过：没有样本文档");
@@ -708,7 +719,11 @@ mod tests {
         assert_eq!(commits[0].message, "import");
 
         let st2 = status(&data, &repo).unwrap();
-        assert!(st2.changes.is_empty(), "提交后工作树应当是干净的: {:?}", st2.changes);
+        assert!(
+            st2.changes.is_empty(),
+            "提交后工作树应当是干净的: {:?}",
+            st2.changes
+        );
 
         run_checked(&data, Some(&repo), &["tag", "v0.1"]).unwrap();
         assert_eq!(tags(&data, &repo).unwrap(), vec!["v0.1".to_string()]);

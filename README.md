@@ -5,6 +5,10 @@
 
 提供两套入口：**CLI**（面向 agent，`--json` 输出机器可读结果）与 **桌面 GUI**（面向普通用户）。
 
+[![CI](https://github.com/SuperQuail/SC2Translater/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SuperQuail/SC2Translater/actions/workflows/ci.yml)
+
+开发约定（分支、提交、PR 流程）见 [CONTRIBUTING.md](CONTRIBUTING.md)；动手前请一并读 [AGENTS.md](AGENTS.md)。
+
 ---
 
 ## 1. 它解决什么问题

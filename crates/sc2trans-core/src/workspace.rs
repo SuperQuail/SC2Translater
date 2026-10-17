@@ -188,7 +188,10 @@ impl Default for Workspace {
 
 impl Workspace {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     /// 读一个文件夹的工作区。没有清单就返回一个**空的新工作区**（不落盘）。
@@ -368,7 +371,14 @@ pub fn scan(root: &Path, max_depth: usize, max_entries: usize) -> Vec<Found> {
     use crate::filekind::{self, FileKind};
     use crate::link::{self, Link};
 
-    const SKIP: [&str; 6] = [WORKSPACE_DIR, ".git", "node_modules", "target", ".idea", "__pycache__"];
+    const SKIP: [&str; 6] = [
+        WORKSPACE_DIR,
+        ".git",
+        "node_modules",
+        "target",
+        ".idea",
+        "__pycache__",
+    ];
 
     let mut out: Vec<Found> = Vec::new();
     let mut stack = vec![(root.to_path_buf(), 0usize)];
@@ -376,7 +386,9 @@ pub fn scan(root: &Path, max_depth: usize, max_entries: usize) -> Vec<Found> {
         if depth > max_depth || out.len() >= max_entries {
             continue;
         }
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
@@ -397,7 +409,12 @@ pub fn scan(root: &Path, max_depth: usize, max_entries: usize) -> Vec<Found> {
             } else {
                 None
             };
-            out.push(Found { path: rel, kind: c.kind, size: c.size, linked_json });
+            out.push(Found {
+                path: rel,
+                kind: c.kind,
+                size: c.size,
+                linked_json,
+            });
         }
     }
     out.sort_by(|a, b| a.path.cmp(&b.path));
@@ -408,7 +425,9 @@ pub fn scan(root: &Path, max_depth: usize, max_entries: usize) -> Vec<Found> {
 /// 工程里有没有老的项目文件（迁移入口用）。
 pub fn legacy_projects(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let Ok(entries) = std::fs::read_dir(root) else { return out };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return out;
+    };
     for e in entries.flatten() {
         let p = e.path();
         if p.extension().and_then(|x| x.to_str()) == Some(PROJECT_EXT) {
@@ -463,7 +482,11 @@ mod tests {
         assert!(first.contains("cache/"));
         std::fs::write(&file, "用户改过的内容\n").unwrap();
         Workspace::new("x").save(&root).unwrap();
-        assert_eq!(std::fs::read_to_string(&file).unwrap(), "用户改过的内容\n", "不该覆盖用户的改动");
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            "用户改过的内容\n",
+            "不该覆盖用户的改动"
+        );
     }
 
     #[test]
@@ -474,7 +497,13 @@ mod tests {
         ws.save(&root).unwrap();
 
         let mut stats = BTreeMap::new();
-        stats.insert("a.SC2Map".to_string(), FileStats { entries: 677, ..Default::default() });
+        stats.insert(
+            "a.SC2Map".to_string(),
+            FileStats {
+                entries: 677,
+                ..Default::default()
+            },
+        );
         Workspace::save_stats(&root, &stats).unwrap();
 
         let manifest = std::fs::read_to_string(workspace_file(&root)).unwrap();
@@ -498,7 +527,10 @@ mod tests {
         let text = std::fs::read_to_string(workspace_file(&root)).unwrap();
         let ws2: Workspace = serde_json::from_str(&text).unwrap();
         assert_eq!(ws2.files[0].path, "Maps/a.SC2Map");
-        assert_eq!(ws2.resolve(&other, &ws2.files[0].path), other.join("Maps").join("a.SC2Map"));
+        assert_eq!(
+            ws2.resolve(&other, &ws2.files[0].path),
+            other.join("Maps").join("a.SC2Map")
+        );
     }
 
     #[test]
@@ -549,7 +581,10 @@ mod tests {
         let paths: Vec<&str> = found.iter().map(|f| f.path.as_str()).collect();
         assert!(paths.contains(&"Maps/a.SC2Map"));
         assert!(paths.contains(&"readme.txt"));
-        assert!(!paths.iter().any(|p| p.contains(".sc2translater")), "不该扫自己的工作区目录");
+        assert!(
+            !paths.iter().any(|p| p.contains(".sc2translater")),
+            "不该扫自己的工作区目录"
+        );
         assert!(!paths.iter().any(|p| p.contains(".hidden")));
     }
 

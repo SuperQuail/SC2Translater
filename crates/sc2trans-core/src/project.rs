@@ -53,7 +53,10 @@ pub struct Defaults {
 
 impl Default for Defaults {
     fn default() -> Self {
-        Self { source: default_source(), target: default_target() }
+        Self {
+            source: default_source(),
+            target: default_target(),
+        }
     }
 }
 
@@ -167,7 +170,10 @@ impl Default for Project {
 
 impl Project {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     /// 项目名默认取项目文件的文件名。
@@ -240,7 +246,10 @@ impl Project {
         // 迁移：老项目文件没有 defaults，用第一个文件的语言对补上（不猜别的）
         if self.defaults.is_none() {
             self.defaults = Some(match self.files.first() {
-                Some(f) => Defaults { source: f.source.clone(), target: f.target.clone() },
+                Some(f) => Defaults {
+                    source: f.source.clone(),
+                    target: f.target.clone(),
+                },
                 None => Defaults::default(),
             });
         }
@@ -392,7 +401,10 @@ mod tests {
     fn defaults_survive_roundtrip_and_are_not_overwritten() {
         let mut p = Project::new("战役");
         p.add_file("D:/m/a.SC2Map");
-        p.defaults = Some(Defaults { source: "enUS".into(), target: "zhCN".into() });
+        p.defaults = Some(Defaults {
+            source: "enUS".into(),
+            target: "zhCN".into(),
+        });
         p.files[0].source = "jaJP".into();
         p.normalize();
         // 显式设过的默认值不该被文件的当前值盖掉
@@ -457,8 +469,14 @@ mod tests {
     #[test]
     fn normalize_drops_duplicates_and_fixes_active() {
         let mut p = Project::new("");
-        p.files.push(ProjectFile { path: "D:/a.SC2Map".into(), ..ProjectFile::new("D:/a.SC2Map") });
-        p.files.push(ProjectFile { path: "d:\\a.SC2Map".into(), ..ProjectFile::new("d:\\a.SC2Map") });
+        p.files.push(ProjectFile {
+            path: "D:/a.SC2Map".into(),
+            ..ProjectFile::new("D:/a.SC2Map")
+        });
+        p.files.push(ProjectFile {
+            path: "d:\\a.SC2Map".into(),
+            ..ProjectFile::new("d:\\a.SC2Map")
+        });
         p.active = 9;
         p.normalize();
         assert_eq!(p.files.len(), 1);
@@ -468,7 +486,10 @@ mod tests {
 
     #[test]
     fn future_format_is_rejected_with_a_readable_message() {
-        let text = format!("{{\"format\": {}, \"name\": \"x\", \"files\": [], \"active\": 0}}", PROJECT_FORMAT + 5);
+        let text = format!(
+            "{{\"format\": {}, \"name\": \"x\", \"files\": [], \"active\": 0}}",
+            PROJECT_FORMAT + 5
+        );
         let err = Project::from_json(&text).unwrap_err();
         assert!(format!("{err}").contains("比本程序支持的"));
     }
@@ -495,8 +516,20 @@ mod tests {
         let mut p = Project::new("x");
         p.add_file("D:/a.SC2Map");
         p.add_file("D:/b.SC2Map");
-        p.files[0].stats = Some(FileStats { entries: 10, missing: 4, identical: 1, translated: 5, ..Default::default() });
-        p.files[1].stats = Some(FileStats { entries: 20, missing: 6, identical: 2, translated: 12, ..Default::default() });
+        p.files[0].stats = Some(FileStats {
+            entries: 10,
+            missing: 4,
+            identical: 1,
+            translated: 5,
+            ..Default::default()
+        });
+        p.files[1].stats = Some(FileStats {
+            entries: 20,
+            missing: 6,
+            identical: 2,
+            translated: 12,
+            ..Default::default()
+        });
         let t = p.totals();
         assert_eq!(t.entries, 30);
         assert_eq!(t.todo(), 13);

@@ -1,0 +1,24 @@
+name: 功能建议
+description: 想要工具支持某件事
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 先说问题，再说想要的方案 —— 方案可以很不一样
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你设想的做法
+    validations:
+      required: false
+  - type: checkboxes
+    id: nongoal
+    attributes:
+      label: 先确认一下
+      options:
+        - label: 这条建议不涉及分发暴雪版权资源（游戏本体、官方地图、语音）
+          required: true

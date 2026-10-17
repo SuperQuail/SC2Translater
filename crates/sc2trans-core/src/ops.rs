@@ -266,7 +266,9 @@ fn diagnose_extract(doc: &TranslationDocument) -> Diagnosis {
             doc.source_locale
         ),
         missing_in_target: Some(missing),
-        actionable: Some(format!("sc2trans seed 或 sc2trans apply 可以把这些键补进 {target}。")),
+        actionable: Some(format!(
+            "sc2trans seed 或 sc2trans apply 可以把这些键补进 {target}。"
+        )),
         ..Default::default()
     }
 }
@@ -307,7 +309,11 @@ pub fn audit(path: &Path, source_locale: &str) -> Result<Value> {
         }
         let expected = source_keys.len();
         let present = source_keys.intersection(&present_keys).count();
-        let coverage = if expected == 0 { 0.0 } else { present as f64 / expected as f64 };
+        let coverage = if expected == 0 {
+            0.0
+        } else {
+            present as f64 / expected as f64
+        };
         locale_rows.push(json!({
             "locale": locale,
             "display": locale_display(locale),
@@ -333,7 +339,11 @@ pub fn audit(path: &Path, source_locale: &str) -> Result<Value> {
                     .count(),
                 None => 0,
             };
-            let coverage = if keys.is_empty() { 0.0 } else { present as f64 / keys.len() as f64 };
+            let coverage = if keys.is_empty() {
+                0.0
+            } else {
+                present as f64 / keys.len() as f64
+            };
             rows.push(json!({
                 "locale": locale,
                 "present": present,
@@ -351,7 +361,11 @@ pub fn audit(path: &Path, source_locale: &str) -> Result<Value> {
         );
     }
 
-    let absent: Vec<&str> = LOCALES.iter().copied().filter(|l| !tables.contains_key(*l)).collect();
+    let absent: Vec<&str> = LOCALES
+        .iter()
+        .copied()
+        .filter(|l| !tables.contains_key(*l))
+        .collect();
     Ok(json!({
         "path": arc.path.display().to_string(),
         "source_locale": source_locale,
@@ -405,7 +419,11 @@ fn diagnose_audit(
         let coverage = row.get("coverage").and_then(|v| v.as_f64()).unwrap_or(1.0);
         let expected = row.get("keys_expected").and_then(|v| v.as_u64()).unwrap_or(0);
         if expected > 0 && coverage < 1.0 {
-            let locale = row.get("locale").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let locale = row
+                .get("locale")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             worst.push((locale, coverage));
         }
     }
@@ -530,7 +548,9 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
         .target_locale
         .clone()
         .or(normalized.target_locale.clone())
-        .ok_or_else(|| CoreError::Invalid("必须指定目标语言：JSON 里没有 target_locale，命令行也没给 --target".into()))?;
+        .ok_or_else(|| {
+            CoreError::Invalid("必须指定目标语言：JSON 里没有 target_locale，命令行也没给 --target".into())
+        })?;
     if !crate::locales::locale_code_ok(&target) {
         return Err(CoreError::Invalid(format!("语言代码形状不对: {target}")));
     }
@@ -543,7 +563,10 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
     }
 
     // 新建目标文件时，用它源语言对应文件的编码习惯（BOM / 换行）作模板
-    let src_locale = normalized.source_locale.clone().unwrap_or_else(|| "enUS".to_string());
+    let src_locale = normalized
+        .source_locale
+        .clone()
+        .unwrap_or_else(|| "enUS".to_string());
     let reader = Archive::open(path)?;
     ensure_listfile(&reader, path)?;
     let src_templates = load_tables(&reader, &src_locale)?;
@@ -559,7 +582,10 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
             value = e.source.clone().filter(|v| !v.is_empty());
         }
         let Some(value) = value else { continue };
-        grouped.entry(e.file.clone()).or_default().push((e.key.clone(), value, e.source.clone()));
+        grouped
+            .entry(e.file.clone())
+            .or_default()
+            .push((e.key.clone(), value, e.source.clone()));
     }
 
     let mut doc = Document::open(path)?;
@@ -576,7 +602,10 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
                     trailing_newline: t.trailing_newline,
                     source_name: comp.clone(),
                 },
-                None => StringFile { source_name: comp.clone(), ..Default::default() },
+                None => StringFile {
+                    source_name: comp.clone(),
+                    ..Default::default()
+                },
             },
         };
         let before = table.key_set();
@@ -598,7 +627,10 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
             total: after.len(),
         };
         doc.set(&comp, table.to_bytes());
-        written.entry(target.clone()).or_default().insert(filename.clone(), info);
+        written
+            .entry(target.clone())
+            .or_default()
+            .insert(filename.clone(), info);
     }
 
     let info = doc.save(&dest)?;
@@ -607,21 +639,31 @@ pub fn apply(path: &Path, raw: &Value, opts: &ApplyOptions) -> Result<ApplyResul
     let check = Archive::open(&dest)?;
     let mut readback: BTreeMap<String, ReadbackInfo> = BTreeMap::new();
     for (filename, w) in written.get(&target).cloned().unwrap_or_default() {
-        let wanted: BTreeSet<String> =
-            grouped.get(&filename).map(|v| v.iter().map(|(k, _, _)| k.clone()).collect()).unwrap_or_default();
+        let wanted: BTreeSet<String> = grouped
+            .get(&filename)
+            .map(|v| v.iter().map(|(k, _, _)| k.clone()).collect())
+            .unwrap_or_default();
         match check.try_read(&w.component) {
             Some(bytes) => {
                 let table = StringFile::parse(&bytes, &w.component)?;
                 let got = wanted.iter().filter(|k| table.contains(k)).count();
                 readback.insert(
                     filename,
-                    ReadbackInfo { ok: got == wanted.len(), keys: got, expected: wanted.len() },
+                    ReadbackInfo {
+                        ok: got == wanted.len(),
+                        keys: got,
+                        expected: wanted.len(),
+                    },
                 );
             }
             None => {
                 readback.insert(
                     filename,
-                    ReadbackInfo { ok: false, keys: 0, expected: wanted.len() },
+                    ReadbackInfo {
+                        ok: false,
+                        keys: 0,
+                        expected: wanted.len(),
+                    },
                 );
             }
         }
@@ -682,7 +724,9 @@ impl FillTargets {
             .collect();
         for code in &list {
             if !crate::locales::locale_code_ok(code) {
-                return Err(CoreError::Invalid(format!("语言代码形状不对（应为 2~4 个字母）: {code}")));
+                return Err(CoreError::Invalid(format!(
+                    "语言代码形状不对（应为 2~4 个字母）: {code}"
+                )));
             }
         }
         if list.is_empty() {
@@ -746,7 +790,11 @@ pub fn fill_locales(
         return Err(CoreError::Invalid("没有要补的目标语言".into()));
     }
 
-    let label = if target_list.len() == 1 { target_list[0].as_str() } else { "all" };
+    let label = if target_list.len() == 1 {
+        target_list[0].as_str()
+    } else {
+        "all"
+    };
     let dest = target_path(path, out, label);
     if same_file(path, &dest) && !force {
         return Err(CoreError::Invalid(
@@ -804,20 +852,27 @@ pub fn fill_locales(
             if added == 0 && !before.is_empty() {
                 continue; // 这条语言/表已经齐了，别白写一遍
             }
-            doc.set(
-                &comp,
-                table.to_bytes(),
-            );
+            doc.set(&comp, table.to_bytes());
             written.entry(target.clone()).or_default().insert(
                 filename.clone(),
-                FileWriteInfo { component: comp.clone(), added, updated: 0, total: after.len() },
+                FileWriteInfo {
+                    component: comp.clone(),
+                    added,
+                    updated: 0,
+                    total: after.len(),
+                },
             );
-            touched.entry(target.clone()).or_default().insert(filename.clone(), wanted);
+            touched
+                .entry(target.clone())
+                .or_default()
+                .insert(filename.clone(), wanted);
         }
     }
 
     if written.is_empty() {
-        return Err(CoreError::Invalid("所有目标语言都已完整，没有需要补的内容".into()));
+        return Err(CoreError::Invalid(
+            "所有目标语言都已完整，没有需要补的内容".into(),
+        ));
     }
 
     let info = doc.save(&dest)?;
@@ -834,13 +889,21 @@ pub fn fill_locales(
                     let got = want.iter().filter(|k| table.contains(k)).count();
                     readback.insert(
                         format!("{target}/{filename}"),
-                        ReadbackInfo { ok: got == want.len(), keys: got, expected: want.len() },
+                        ReadbackInfo {
+                            ok: got == want.len(),
+                            keys: got,
+                            expected: want.len(),
+                        },
                     );
                 }
                 None => {
                     readback.insert(
                         format!("{target}/{filename}"),
-                        ReadbackInfo { ok: false, keys: 0, expected: want.len() },
+                        ReadbackInfo {
+                            ok: false,
+                            keys: 0,
+                            expected: want.len(),
+                        },
                     );
                 }
             }
@@ -853,7 +916,11 @@ pub fn fill_locales(
         ok,
         input: path.display().to_string(),
         output: dest.display().to_string(),
-        target_locale: if target_list.len() == 1 { target_list[0].clone() } else { "all".into() },
+        target_locale: if target_list.len() == 1 {
+            target_list[0].clone()
+        } else {
+            "all".into()
+        },
         source_locale: Some(source_locale.to_string()),
         components_written: written,
         container: ContainerInfo {

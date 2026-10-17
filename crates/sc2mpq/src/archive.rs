@@ -10,9 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::compress::{best_compress, decompress_chunk};
-use crate::crypto::{
-    HASH_FILE_KEY, HASH_TABLE_OFFSET, bits_get, decrypt, encrypt, file_key, hash_string,
-};
+use crate::crypto::{HASH_FILE_KEY, HASH_TABLE_OFFSET, bits_get, decrypt, encrypt, file_key, hash_string};
 use crate::tables::{
     Attributes, BetTable, BlockEntry, HashEntry, HetTable, build_attributes, build_bet, build_hash_table,
     build_het, md5_of,
@@ -179,7 +177,10 @@ impl Archive {
         let start = pos as usize;
         let end = start + count as usize * 16;
         if end > raw.len() {
-            return Err(MpqError::TooShort { need: end, got: raw.len() });
+            return Err(MpqError::TooShort {
+                need: end,
+                got: raw.len(),
+            });
         }
         let blob = &raw[start..end];
         let key = hash_string("(hash table)", HASH_FILE_KEY);
@@ -199,7 +200,10 @@ impl Archive {
         let start = pos as usize;
         let end = start + count as usize * 16;
         if end > raw.len() {
-            return Err(MpqError::TooShort { need: end, got: raw.len() });
+            return Err(MpqError::TooShort {
+                need: end,
+                got: raw.len(),
+            });
         }
         let blob = &raw[start..end];
         let key = hash_string("(block table)", HASH_FILE_KEY);
@@ -239,7 +243,11 @@ impl Archive {
 
     /// 业务组件名（不含簿记项）。
     pub fn component_names(&self) -> Vec<String> {
-        self.names.iter().filter(|n| !is_bookkeeping(n)).cloned().collect()
+        self.names
+            .iter()
+            .filter(|n| !is_bookkeeping(n))
+            .cloned()
+            .collect()
     }
 
     pub fn block_name(&self, index: u32) -> Option<String> {
@@ -344,7 +352,10 @@ impl Archive {
         let start = b.file_pos as usize;
         let end = start + b.cmp_size as usize;
         if end > self.raw.len() {
-            return Err(MpqError::TooShort { need: end, got: self.raw.len() });
+            return Err(MpqError::TooShort {
+                need: end,
+                got: self.raw.len(),
+            });
         }
         let stored = &self.raw[start..end];
         let data = if b.flags & FLAG_ENCRYPTED != 0 {
@@ -369,7 +380,10 @@ impl Archive {
         }
         let sectors = file_size.div_ceil(bs);
         if (sectors + 1) * 4 > data.len() {
-            return Err(MpqError::TooShort { need: (sectors + 1) * 4, got: data.len() });
+            return Err(MpqError::TooShort {
+                need: (sectors + 1) * 4,
+                got: data.len(),
+            });
         }
         let mut offsets = Vec::with_capacity(sectors + 1);
         for i in 0..=sectors {
@@ -394,7 +408,9 @@ impl Archive {
             if !b.exists() {
                 continue;
             }
-            let Some(name) = self.block_name(i as u32) else { continue };
+            let Some(name) = self.block_name(i as u32) else {
+                continue;
+            };
             let data = self.read_block(i as u32, &name)?;
             let target = dest.join(name.replace('\\', "/"));
             if let Some(parent) = target.parent() {
@@ -497,7 +513,9 @@ impl Archive {
                         continue;
                     }
                     let name = self.block_name(i as u32).unwrap_or_default();
-                    let Ok(data) = self.read_block(i as u32, &name) else { continue };
+                    let Ok(data) = self.read_block(i as u32, &name) else {
+                        continue;
+                    };
                     if let Some(md5s) = attrs.md5s.as_ref() {
                         if md5s.get(i).is_some_and(|m| *m == md5_of(&data)) {
                             r.md5_ok += 1;
@@ -636,8 +654,7 @@ fn pack_entries(
     for (name, data) in entries {
         let current = HEADER_SIZE_V3 as u32 + body.len() as u32;
         let hint = hints.get(name).copied();
-        let sectorised =
-            hint.is_some_and(|h| h & FLAG_SINGLE_UNIT == 0) && data.len() > block_size as usize;
+        let sectorised = hint.is_some_and(|h| h & FLAG_SINGLE_UNIT == 0) && data.len() > block_size as usize;
         if data.is_empty() {
             blocks.push(BlockEntry {
                 file_pos: current,
@@ -649,8 +666,7 @@ fn pack_entries(
         }
         if !sectorised {
             let (payload, compressed) = best_compress(data)?;
-            let flags =
-                FLAG_EXISTS | FLAG_SINGLE_UNIT | if compressed { FLAG_COMPRESS } else { 0 };
+            let flags = FLAG_EXISTS | FLAG_SINGLE_UNIT | if compressed { FLAG_COMPRESS } else { 0 };
             blocks.push(BlockEntry {
                 file_pos: current,
                 cmp_size: payload.len() as u32,
@@ -879,11 +895,20 @@ impl Document {
             hash_count: Some(archive.hash_count),
             block_shift: archive.block_shift,
             unknown08: archive.bet.as_ref().map(|b| b.unknown08).unwrap_or(0x10),
-            attr_flags: archive.attributes.as_ref().map(|a| a.flags).unwrap_or(ATTR_CRC32 | ATTR_MD5),
+            attr_flags: archive
+                .attributes
+                .as_ref()
+                .map(|a| a.flags)
+                .unwrap_or(ATTR_CRC32 | ATTR_MD5),
             listfile,
             per_block_flags,
         };
-        Ok(Self { path, entries, layout, original_names })
+        Ok(Self {
+            path,
+            entries,
+            layout,
+            original_names,
+        })
     }
 
     pub fn component_names(&self) -> Vec<String> {
@@ -899,7 +924,10 @@ impl Document {
     }
 
     pub fn get(&self, name: &str) -> Option<&[u8]> {
-        self.entries.iter().find(|(n, _)| n == name).map(|(_, d)| d.as_slice())
+        self.entries
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, d)| d.as_slice())
     }
 
     /// 写入/替换一个组件（新组件插在簿记项之前）。
@@ -929,11 +957,16 @@ impl Document {
     /// 组件集合没变时沿用原件 (listfile)。
     pub fn save(&self, dest: &Path) -> Result<BuildInfo> {
         let names_now: Vec<String> = self.component_names();
-        let keep_listfile =
-            if names_now == self.original_names { self.layout.listfile.clone() } else { None };
+        let keep_listfile = if names_now == self.original_names {
+            self.layout.listfile.clone()
+        } else {
+            None
+        };
         let mut hints = self.layout.per_block_flags.clone();
         for name in &names_now {
-            hints.entry(name.clone()).or_insert(FLAG_EXISTS | FLAG_SINGLE_UNIT);
+            hints
+                .entry(name.clone())
+                .or_insert(FLAG_EXISTS | FLAG_SINGLE_UNIT);
         }
 
         // 经典 hash 表必须**大于**条目数（至少留一个空槽），否则读取器会
@@ -996,7 +1029,10 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let dest = dir.join("small.SC2Map");
         let entries = vec![
-            ("Base.SC2Data\\GameData\\UnitData.xml".to_string(), b"<Catalog/>".to_vec()),
+            (
+                "Base.SC2Data\\GameData\\UnitData.xml".to_string(),
+                b"<Catalog/>".to_vec(),
+            ),
             (
                 "enUS.SC2Data\\LocalizedData\\GameStrings.txt".to_string(),
                 b"DocInfo/Name=X\r\n".to_vec(),
@@ -1023,8 +1059,9 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let a = dir.join("a.SC2Map");
         // 6 个组件 -> 连簿记项共 8 个条目，正好是 2 的幂：不处理会被填满
-        let entries: Vec<(String, Vec<u8>)> =
-            (0..6).map(|i| (format!("C{i}.bin"), vec![i as u8; 32 + i])).collect();
+        let entries: Vec<(String, Vec<u8>)> = (0..6)
+            .map(|i| (format!("C{i}.bin"), vec![i as u8; 32 + i]))
+            .collect();
         build_document(&entries, &a, &BuildOptions::default()).unwrap();
         let mut doc = Document::open(&a).unwrap();
         doc.set("New/Component.txt", b"hello".to_vec());

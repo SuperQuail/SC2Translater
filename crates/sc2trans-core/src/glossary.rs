@@ -92,7 +92,11 @@ impl Term {
             return false;
         }
         let needle = self.haystack();
-        let hay = if self.case_sensitive { text.to_string() } else { text.to_lowercase() };
+        let hay = if self.case_sensitive {
+            text.to_string()
+        } else {
+            text.to_lowercase()
+        };
         hay.contains(&needle)
     }
 
@@ -155,7 +159,10 @@ impl Default for Glossary {
 
 impl Glossary {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Default::default() }
+        Self {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -194,7 +201,10 @@ impl Glossary {
     /// 按原文排序，保证界面顺序稳定。
     pub fn sort(&mut self) {
         self.terms.sort_by(|a, b| {
-            a.source.to_lowercase().cmp(&b.source.to_lowercase()).then_with(|| a.target.cmp(&b.target))
+            a.source
+                .to_lowercase()
+                .cmp(&b.source.to_lowercase())
+                .then_with(|| a.target.cmp(&b.target))
         });
     }
 
@@ -221,7 +231,8 @@ impl Glossary {
             })
             .collect();
         hits.sort_by(|a, b| {
-            a.0.cmp(&b.0).then_with(|| a.1.source.to_lowercase().cmp(&b.1.source.to_lowercase()))
+            a.0.cmp(&b.0)
+                .then_with(|| a.1.source.to_lowercase().cmp(&b.1.source.to_lowercase()))
         });
         hits.into_iter().map(|(_, t)| t).collect()
     }
@@ -376,7 +387,10 @@ pub fn project_path(project_file: &Path) -> PathBuf {
     if dir.file_name().and_then(|n| n.to_str()) == Some(crate::workspace::WORKSPACE_DIR) {
         return dir.join("glossary.json");
     }
-    let stem = project_file.file_stem().and_then(|s| s.to_str()).unwrap_or("project");
+    let stem = project_file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("project");
     dir.join(format!("{stem}.glossary.json"))
 }
 
@@ -481,7 +495,10 @@ mod tests {
     fn case_sensitivity_is_respected() {
         let mut g = Glossary::new("t");
         g.upsert(Term::new("Hive", "主巢", Scope::Global));
-        assert!(g.match_text("a hive of scum").is_empty(), "默认大小写敏感，小写 hive 不该命中");
+        assert!(
+            g.match_text("a hive of scum").is_empty(),
+            "默认大小写敏感，小写 hive 不该命中"
+        );
         let mut loose = Term::new("Scarab", "圣甲虫", Scope::Global);
         loose.case_sensitive = false;
         g.upsert(loose);
@@ -559,6 +576,10 @@ mod tests {
     #[test]
     fn project_path_follows_the_workspace_dir() {
         let p = project_path(Path::new("D:/x/.sc2translater/workspace.json"));
-        assert_eq!(p, PathBuf::from("D:/x/.sc2translater/glossary.json"), "工作区模式下术语库收进 .sc2translater");
+        assert_eq!(
+            p,
+            PathBuf::from("D:/x/.sc2translater/glossary.json"),
+            "工作区模式下术语库收进 .sc2translater"
+        );
     }
 }

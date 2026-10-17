@@ -63,7 +63,10 @@ mod tests {
 
     #[test]
     fn sibling_is_same_stem() {
-        assert_eq!(sibling_json(Path::new("D:/m/Maps/Stukov2.SC2Map")), PathBuf::from("D:/m/Maps/Stukov2.json"));
+        assert_eq!(
+            sibling_json(Path::new("D:/m/Maps/Stukov2.SC2Map")),
+            PathBuf::from("D:/m/Maps/Stukov2.json")
+        );
         assert_eq!(sibling_json(Path::new("a.SC2Mod")), PathBuf::from("a.json"));
     }
 

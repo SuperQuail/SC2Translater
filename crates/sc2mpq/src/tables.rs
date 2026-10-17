@@ -8,8 +8,8 @@ use md5::{Digest, Md5};
 
 use crate::compress::best_compress;
 use crate::crypto::{
-    HASH_FILE_KEY, HASH_NAME_A, HASH_NAME_B, HASH_TABLE_OFFSET, bad_table, bits_get, bits_set,
-    encrypt, hash_string, jenkins_name_hash, necessary_bit_count,
+    HASH_FILE_KEY, HASH_NAME_A, HASH_NAME_B, HASH_TABLE_OFFSET, bad_table, bits_get, bits_set, encrypt,
+    hash_string, jenkins_name_hash, necessary_bit_count,
 };
 use crate::{
     ATTR_CRC32, ATTR_FILETIME, ATTR_MD5, BET_SIG, HASH_ENTRY_FREE, HET_ENTRY_FREE, HET_SIG, MD5_ZERO,
@@ -65,7 +65,13 @@ pub struct HashEntry {
 
 impl HashEntry {
     pub fn free() -> Self {
-        Self { hash_a: 0, hash_b: 0, locale: 0xFFFF, platform: 0xFFFF, block_index: HASH_ENTRY_FREE }
+        Self {
+            hash_a: 0,
+            hash_b: 0,
+            locale: 0xFFFF,
+            platform: 0xFFFF,
+            block_index: HASH_ENTRY_FREE,
+        }
     }
 
     pub fn is_free(&self) -> bool {
@@ -343,14 +349,26 @@ impl BetTable {
     /// 返回第 i 条目的 (file_pos, file_size, cmp_size, flag_index)。
     pub fn entry(&self, i: u32) -> (u64, u64, u64, u64) {
         let base = self.table_entry_size as usize * i as usize;
-        let pos =
-            bits_get(&self.file_bits, base + self.bit_index_file_pos as usize, self.bit_count_file_pos);
-        let size =
-            bits_get(&self.file_bits, base + self.bit_index_file_size as usize, self.bit_count_file_size);
-        let cmp =
-            bits_get(&self.file_bits, base + self.bit_index_cmp_size as usize, self.bit_count_cmp_size);
-        let flag =
-            bits_get(&self.file_bits, base + self.bit_index_flag_index as usize, self.bit_count_flag_index);
+        let pos = bits_get(
+            &self.file_bits,
+            base + self.bit_index_file_pos as usize,
+            self.bit_count_file_pos,
+        );
+        let size = bits_get(
+            &self.file_bits,
+            base + self.bit_index_file_size as usize,
+            self.bit_count_file_size,
+        );
+        let cmp = bits_get(
+            &self.file_bits,
+            base + self.bit_index_cmp_size as usize,
+            self.bit_count_cmp_size,
+        );
+        let flag = bits_get(
+            &self.file_bits,
+            base + self.bit_index_flag_index as usize,
+            self.bit_count_flag_index,
+        );
         (pos, size, cmp, flag)
     }
 
@@ -410,7 +428,11 @@ impl Attributes {
         }
         let version = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
         let flags = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
-        let mut out = Self { version, flags, ..Default::default() };
+        let mut out = Self {
+            version,
+            flags,
+            ..Default::default()
+        };
         let mut p = 8usize;
         if flags & ATTR_CRC32 != 0 {
             let mut v = Vec::with_capacity(block_count);
@@ -419,7 +441,12 @@ impl Attributes {
                 if q + 4 > data.len() {
                     return Err(bad_table("(attributes) CRC 数组越界"));
                 }
-                v.push(u32::from_le_bytes([data[q], data[q + 1], data[q + 2], data[q + 3]]));
+                v.push(u32::from_le_bytes([
+                    data[q],
+                    data[q + 1],
+                    data[q + 2],
+                    data[q + 3],
+                ]));
             }
             p += 4 * block_count;
             out.crcs = Some(v);
@@ -500,7 +527,12 @@ pub fn build_het(names: &[String], name_hash_bit_size: u32) -> Result<HetTable> 
             }
         }
         name_hashes[idx] = nh1;
-        bits_set(&mut index_bits, index_size_total as usize * idx, index_size_total, i as u64);
+        bits_set(
+            &mut index_bits,
+            index_size_total as usize * idx,
+            index_size_total,
+            i as u64,
+        );
     }
 
     Ok(HetTable {
@@ -555,8 +587,7 @@ pub fn build_bet(
     let bit_total_nh2 = name_hash_bit_size - 8;
     let name_hash_array_size = (bit_total_nh2 as u64 * entry_count as u64).div_ceil(8);
     let entry_bytes = (table_entry_size as u64 * entry_count as u64).div_ceil(8);
-    let table_size =
-        76 + flag_array.len() as u32 * 4 + entry_bytes as u32 + name_hash_array_size as u32;
+    let table_size = 76 + flag_array.len() as u32 * 4 + entry_bytes as u32 + name_hash_array_size as u32;
 
     let mut file_bits = vec![0u8; entry_bytes as usize];
     let mut hash_bits = vec![0u8; name_hash_array_size as usize];
@@ -564,8 +595,18 @@ pub fn build_bet(
     for (i, b) in blocks.iter().enumerate() {
         let base = table_entry_size as usize * i;
         bits_set(&mut file_bits, base + bi_pos as usize, bc_pos, b.file_pos as u64);
-        bits_set(&mut file_bits, base + bi_fsize as usize, bc_fsize, b.file_size as u64);
-        bits_set(&mut file_bits, base + bi_csize as usize, bc_csize, b.cmp_size as u64);
+        bits_set(
+            &mut file_bits,
+            base + bi_fsize as usize,
+            bc_fsize,
+            b.file_size as u64,
+        );
+        bits_set(
+            &mut file_bits,
+            base + bi_csize as usize,
+            bc_csize,
+            b.cmp_size as u64,
+        );
         bits_set(&mut file_bits, base + bi_flag as usize, bc_flag, flag_indexes[i]);
         let fh = jenkins_name_hash(&names[i], name_hash_bit_size);
         bits_set(
@@ -637,9 +678,21 @@ pub fn build_attributes(
     let mut a = Attributes {
         version,
         flags,
-        crcs: if flags & ATTR_CRC32 != 0 { Some(vec![0u32; n]) } else { None },
-        filetimes: if flags & ATTR_FILETIME != 0 { Some(vec![0u64; n]) } else { None },
-        md5s: if flags & ATTR_MD5 != 0 { Some(vec![MD5_ZERO; n]) } else { None },
+        crcs: if flags & ATTR_CRC32 != 0 {
+            Some(vec![0u32; n])
+        } else {
+            None
+        },
+        filetimes: if flags & ATTR_FILETIME != 0 {
+            Some(vec![0u64; n])
+        } else {
+            None
+        },
+        md5s: if flags & ATTR_MD5 != 0 {
+            Some(vec![MD5_ZERO; n])
+        } else {
+            None
+        },
     };
     for i in 0..n {
         let Some(name) = names.get(i) else { continue };
@@ -675,11 +728,15 @@ pub fn pack_single(data: &[u8], file_pos: u32) -> Result<(Vec<u8>, BlockEntry)> 
         ));
     }
     let (payload, compressed) = best_compress(data)?;
-    let flags = crate::FLAG_EXISTS
-        | crate::FLAG_SINGLE_UNIT
-        | if compressed { crate::FLAG_COMPRESS } else { 0 };
+    let flags =
+        crate::FLAG_EXISTS | crate::FLAG_SINGLE_UNIT | if compressed { crate::FLAG_COMPRESS } else { 0 };
     Ok((
         payload.clone(),
-        BlockEntry { file_pos, cmp_size: payload.len() as u32, file_size: data.len() as u32, flags },
+        BlockEntry {
+            file_pos,
+            cmp_size: payload.len() as u32,
+            file_size: data.len() as u32,
+            flags,
+        },
     ))
 }

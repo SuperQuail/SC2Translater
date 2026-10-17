@@ -43,10 +43,18 @@ pub struct Classified {
 /// 判一个路径。读不出第一个字节就当二进制（宁可拒绝，也别把乱码塞进编辑器）。
 pub fn classify(path: &Path) -> Classified {
     let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
 
     if ext == "sc2map" || ext == "sc2mod" {
-        return Classified { kind: FileKind::Sc2, size, reason: None };
+        return Classified {
+            kind: FileKind::Sc2,
+            size,
+            reason: None,
+        };
     }
 
     let head = read_head(path);
@@ -58,12 +66,17 @@ pub fn classify(path: &Path) -> Classified {
                 reason: Some(format!("图片太大（{} MB），不加载", size / 1024 / 1024)),
             };
         }
-        return Classified { kind, size, reason: None };
+        return Classified {
+            kind,
+            size,
+            reason: None,
+        };
     }
 
     // UTF-16 要排在 NUL 检查前面 —— UTF-16 文本本来就满是 0x00，
     // 先查 NUL 会把合法的 UTF-16 判成二进制（这条是测试逼出来的）。
-    let utf16 = head.len() >= 2 && ((head[0] == 0xFF && head[1] == 0xFE) || (head[0] == 0xFE && head[1] == 0xFF));
+    let utf16 =
+        head.len() >= 2 && ((head[0] == 0xFF && head[1] == 0xFE) || (head[0] == 0xFE && head[1] == 0xFF));
     if utf16 {
         if size > MAX_TEXT_BYTES {
             return Classified {
@@ -72,14 +85,20 @@ pub fn classify(path: &Path) -> Classified {
                 reason: Some(format!("文本太大（{} MB），超过上限，不加载", size / 1024 / 1024)),
             };
         }
-        return Classified { kind: FileKind::Text, size, reason: None };
+        return Classified {
+            kind: FileKind::Text,
+            size,
+            reason: None,
+        };
     }
 
     if head.contains(&0) {
         return Classified {
             kind: FileKind::Binary,
             size,
-            reason: Some("这个文件不是文本（前面有 NUL 字节），大概是个二进制资源。本工具不打开这类文件。".into()),
+            reason: Some(
+                "这个文件不是文本（前面有 NUL 字节），大概是个二进制资源。本工具不打开这类文件。".into(),
+            ),
         };
     }
 
@@ -96,16 +115,26 @@ pub fn classify(path: &Path) -> Classified {
         return Classified {
             kind: FileKind::Binary,
             size,
-            reason: Some(format!("文本太大（{} MB），超过 {} MB 上限，不加载", size / 1024 / 1024, MAX_TEXT_BYTES / 1024 / 1024)),
+            reason: Some(format!(
+                "文本太大（{} MB），超过 {} MB 上限，不加载",
+                size / 1024 / 1024,
+                MAX_TEXT_BYTES / 1024 / 1024
+            )),
         };
     }
 
-    Classified { kind: FileKind::Text, size, reason: None }
+    Classified {
+        kind: FileKind::Text,
+        size,
+        reason: None,
+    }
 }
 
 fn read_head(path: &Path) -> Vec<u8> {
     use std::io::Read;
-    let Ok(mut f) = std::fs::File::open(path) else { return Vec::new() };
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
     let mut buf = vec![0u8; SNIFF_BYTES];
     let n = f.read(&mut buf).unwrap_or(0);
     buf.truncate(n);
@@ -190,7 +219,11 @@ mod tests {
     #[test]
     fn png_by_magic() {
         let d = tmp("png");
-        let p = write(&d, "cover.png", &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0]);
+        let p = write(
+            &d,
+            "cover.png",
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0],
+        );
         assert_eq!(classify(&p).kind, FileKind::Image);
     }
 

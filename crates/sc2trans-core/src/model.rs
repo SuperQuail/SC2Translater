@@ -114,7 +114,9 @@ pub fn normalize_input(raw: &Value, default_file: &str) -> Result<Normalized> {
             let mut entries = Vec::with_capacity(items.len());
             for item in items {
                 let Value::Object(obj) = item else { continue };
-                let Some(Value::String(key)) = obj.get("key") else { continue };
+                let Some(Value::String(key)) = obj.get("key") else {
+                    continue;
+                };
                 entries.push(Entry {
                     key: key.clone(),
                     file: obj
@@ -125,21 +127,36 @@ pub fn normalize_input(raw: &Value, default_file: &str) -> Result<Normalized> {
                         .to_string(),
                     source: obj.get("source").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     target: obj.get("target").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    status: obj.get("status").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    status: obj
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     origin: obj
                         .get("origin")
                         .and_then(|v| v.as_array())
                         .map(|a| {
-                            a.iter().filter_map(|x| x.as_str()).map(|s| s.to_string()).collect()
+                            a.iter()
+                                .filter_map(|x| x.as_str())
+                                .map(|s| s.to_string())
+                                .collect()
                         })
                         .unwrap_or_default(),
                 });
             }
-            let source_locale =
-                map.get("source_locale").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let target_locale =
-                map.get("target_locale").and_then(|v| v.as_str()).map(|s| s.to_string());
-            return Ok(Normalized { entries, source_locale, target_locale });
+            let source_locale = map
+                .get("source_locale")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let target_locale = map
+                .get("target_locale")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            return Ok(Normalized {
+                entries,
+                source_locale,
+                target_locale,
+            });
         }
 
         // 扁平字典
@@ -147,12 +164,19 @@ pub fn normalize_input(raw: &Value, default_file: &str) -> Result<Normalized> {
         for (key, value) in map {
             let (file, source, target) = if let Value::Object(obj) = value {
                 (
-                    obj.get("file").and_then(|v| v.as_str()).unwrap_or(default_file).to_string(),
+                    obj.get("file")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(default_file)
+                        .to_string(),
                     obj.get("source").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     obj.get("target").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 )
             } else {
-                (default_file.to_string(), None, value.as_str().map(|s| s.to_string()))
+                (
+                    default_file.to_string(),
+                    None,
+                    value.as_str().map(|s| s.to_string()),
+                )
             };
             entries.push(Entry {
                 key: key.clone(),
@@ -163,7 +187,11 @@ pub fn normalize_input(raw: &Value, default_file: &str) -> Result<Normalized> {
                 origin: Vec::new(),
             });
         }
-        return Ok(Normalized { entries, source_locale: None, target_locale: None });
+        return Ok(Normalized {
+            entries,
+            source_locale: None,
+            target_locale: None,
+        });
     }
     Err(CoreError::Invalid(
         "无法识别的翻译 JSON：既不是 {entries:[...]} 也不是 {key: value}".to_string(),
@@ -182,5 +210,11 @@ pub fn compute_stats(entries: &[Entry], locales_present: Vec<String>) -> Stats {
             translatable += 1;
         }
     }
-    Stats { entries: entries.len(), by_status, by_file, translatable, locales_present }
+    Stats {
+        entries: entries.len(),
+        by_status,
+        by_file,
+        translatable,
+        locales_present,
+    }
 }

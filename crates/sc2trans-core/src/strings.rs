@@ -101,10 +101,14 @@ impl StringFile {
     pub fn parse(data: &[u8], source_name: &str) -> Result<Self, StringFileError> {
         let bom = data.starts_with(&BOM_BYTES);
         let body = if bom { &data[BOM_BYTES.len()..] } else { data };
-        let text = std::str::from_utf8(body)
-            .map_err(|_| StringFileError::NotUtf8(source_name.to_string()))?;
+        let text =
+            std::str::from_utf8(body).map_err(|_| StringFileError::NotUtf8(source_name.to_string()))?;
 
-        let newline = if text.contains("\r\n") { Newline::Crlf } else { Newline::Lf };
+        let newline = if text.contains("\r\n") {
+            Newline::Crlf
+        } else {
+            Newline::Lf
+        };
         let trailing_newline = text.ends_with("\r\n") || text.ends_with('\n');
         let mut lines: Vec<&str> = match newline {
             Newline::Crlf => text.split("\r\n").collect(),
@@ -133,7 +137,11 @@ impl StringFile {
                     value: value.to_string(),
                     original: Some(original.to_string()),
                 },
-                None => Pair { key: key.to_string(), value: rest.to_string(), original: None },
+                None => Pair {
+                    key: key.to_string(),
+                    value: rest.to_string(),
+                    original: None,
+                },
             };
             records.push(Record::Pair(pair));
         }
@@ -286,7 +294,6 @@ impl StringFile {
         }
         added
     }
-
 }
 
 #[cfg(test)]

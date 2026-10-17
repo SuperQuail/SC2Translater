@@ -256,8 +256,7 @@ async fn export_document(doc: Value, out: String) -> Result<Value, String> {
 #[command]
 async fn import_document(path: String) -> Result<Value, String> {
     blocking(move || {
-        let text =
-            std::fs::read_to_string(&path).map_err(|e| format!("读取 {path} 失败: {e}"))?;
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("读取 {path} 失败: {e}"))?;
         let value: Value = serde_json::from_str(&text).map_err(|e| format!("解析 JSON 失败: {e}"))?;
         Ok(value)
     })
@@ -299,8 +298,7 @@ async fn apply(
     sort_keys: bool,
 ) -> Result<Value, String> {
     blocking(move || {
-        let text = std::fs::read_to_string(&json_path)
-            .map_err(|e| format!("读取 {json_path} 失败: {e}"))?;
+        let text = std::fs::read_to_string(&json_path).map_err(|e| format!("读取 {json_path} 失败: {e}"))?;
         let raw: Value = serde_json::from_str(&text).map_err(|e| format!("解析 JSON 失败: {e}"))?;
         let opts = ApplyOptions {
             out: Some(PathBuf::from(&out)),
@@ -333,8 +331,7 @@ async fn seed(
             sort: sort_keys,
             ..Default::default()
         };
-        let result = ops::seed(Path::new(&archive), &source, &target, &opts)
-            .map_err(|e| format!("{e:#}"))?;
+        let result = ops::seed(Path::new(&archive), &source, &target, &opts).map_err(|e| format!("{e:#}"))?;
         serde_json::to_value(&result).map_err(|e| format!("{e:#}"))
     })
     .await
@@ -457,8 +454,7 @@ async fn glossary_save(
 ) -> Result<Value, String> {
     let dir = data_dir(&app)?;
     blocking(move || {
-        let mut g: Glossary =
-            serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
+        let mut g: Glossary = serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
         g.sort();
         let path = match scope.as_str() {
             "global" => glossary::global_path(&dir),
@@ -481,7 +477,11 @@ async fn glossary_save(
 async fn glossary_pick(save: bool, default_name: String) -> Option<String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dialog = rfd::FileDialog::new()
-            .set_title(if save { "导出术语库" } else { "导入术语库" })
+            .set_title(if save {
+                "导出术语库"
+            } else {
+                "导入术语库"
+            })
             .add_filter("术语库", &["json", "csv"]);
         if save {
             dialog.set_file_name(default_name).save_file()
@@ -501,7 +501,11 @@ async fn glossary_read(path: String, scope: String) -> Result<Value, String> {
     blocking(move || {
         let text = std::fs::read_to_string(&path).map_err(|e| format!("读取 {path} 失败: {e}"))?;
         let is_csv = path.to_ascii_lowercase().ends_with(".csv");
-        let st = if scope == "project" { Scope::Project } else { Scope::Global };
+        let st = if scope == "project" {
+            Scope::Project
+        } else {
+            Scope::Global
+        };
         if is_csv {
             let mut g = Glossary::new("导入");
             let n = g.import_csv(&text, st);
@@ -519,8 +523,7 @@ async fn glossary_read(path: String, scope: String) -> Result<Value, String> {
 #[command]
 async fn glossary_write(path: String, glossary: Value) -> Result<Value, String> {
     blocking(move || {
-        let mut g: Glossary =
-            serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
+        let mut g: Glossary = serde_json::from_value(glossary).map_err(|e| format!("术语库结构不对: {e}"))?;
         g.sort();
         let body = if path.to_ascii_lowercase().ends_with(".csv") {
             g.export_csv()
@@ -550,8 +553,7 @@ async fn mt_config_get(app: tauri::AppHandle) -> Result<Value, String> {
 async fn mt_config_set(app: tauri::AppHandle, config: Value) -> Result<Value, String> {
     let dir = data_dir(&app)?;
     blocking(move || {
-        let cfg: MtConfig =
-            serde_json::from_value(config).map_err(|e| format!("机翻配置不对: {e}"))?;
+        let cfg: MtConfig = serde_json::from_value(config).map_err(|e| format!("机翻配置不对: {e}"))?;
         cfg.save(&dir).map_err(|e| format!("{e:#}"))?;
         serde_json::to_value(cfg).map_err(|e| format!("{e:#}"))
     })
@@ -640,7 +642,10 @@ fn load_glossary_pair(dir: &Path, project_file: Option<&str>) -> glossary::Gloss
 #[command]
 async fn pick_folder() -> Option<String> {
     tauri::async_runtime::spawn_blocking(move || {
-        rfd::FileDialog::new().set_title("打开文件夹").pick_folder().map(|p| p.display().to_string())
+        rfd::FileDialog::new()
+            .set_title("打开文件夹")
+            .pick_folder()
+            .map(|p| p.display().to_string())
     })
     .await
     .ok()
@@ -653,8 +658,10 @@ async fn workspace_load(root: String) -> Result<Value, String> {
     blocking(move || {
         let base = PathBuf::from(&root);
         let ws = sc2trans_core::workspace::Workspace::load(&base).map_err(|e| format!("{e:#}"))?;
-        let legacy: Vec<String> =
-            sc2trans_core::workspace::legacy_projects(&base).iter().map(|p| p.display().to_string()).collect();
+        let legacy: Vec<String> = sc2trans_core::workspace::legacy_projects(&base)
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
         let stats = sc2trans_core::workspace::Workspace::load_stats(&base);
         Ok(serde_json::json!({ "workspace": ws, "legacy_projects": legacy, "stats": stats }))
     })
@@ -679,7 +686,8 @@ async fn workspace_save_stats(root: String, stats: Value) -> Result<Value, Strin
     blocking(move || {
         let map: std::collections::BTreeMap<String, sc2trans_core::project::FileStats> =
             serde_json::from_value(stats).map_err(|e| format!("统计结构不对: {e}"))?;
-        sc2trans_core::workspace::Workspace::save_stats(Path::new(&root), &map).map_err(|e| format!("{e:#}"))?;
+        sc2trans_core::workspace::Workspace::save_stats(Path::new(&root), &map)
+            .map_err(|e| format!("{e:#}"))?;
         Ok(serde_json::json!({ "ok": true }))
     })
     .await
@@ -692,7 +700,8 @@ async fn workspace_migrate(root: String, project_file: String) -> Result<Value, 
         use sc2trans_core::project::Project;
         use sc2trans_core::workspace::Workspace;
         let base = PathBuf::from(&root);
-        let text = std::fs::read_to_string(&project_file).map_err(|e| format!("读 {project_file} 失败: {e}"))?;
+        let text =
+            std::fs::read_to_string(&project_file).map_err(|e| format!("读 {project_file} 失败: {e}"))?;
         let project = Project::from_json(&text).map_err(|e| format!("{e:#}"))?;
         let (ws, outside) = Workspace::from_project(&project, &base);
         ws.save(&base).map_err(|e| format!("{e:#}"))?;
@@ -730,8 +739,13 @@ async fn recent_touch(app: tauri::AppHandle, root: String) -> Result<Value, Stri
     blocking(move || {
         use sc2trans_core::project::{RecentProjects, normalize_path};
         let mut recent = RecentProjects::load_named(&dir, "recent-folders.json");
-        let name = Path::new(&root).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| root.clone());
-        recent.items.retain(|e| normalize_path(&e.path) != normalize_path(&root));
+        let name = Path::new(&root)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| root.clone());
+        recent
+            .items
+            .retain(|e| normalize_path(&e.path) != normalize_path(&root));
         recent.items.insert(
             0,
             sc2trans_core::project::RecentEntry {
@@ -742,7 +756,9 @@ async fn recent_touch(app: tauri::AppHandle, root: String) -> Result<Value, Stri
             },
         );
         recent.items.truncate(20);
-        recent.save_named(&dir, "recent-folders.json").map_err(|e| format!("{e:#}"))?;
+        recent
+            .save_named(&dir, "recent-folders.json")
+            .map_err(|e| format!("{e:#}"))?;
         serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
     })
     .await
@@ -756,7 +772,9 @@ async fn forget_folder(app: tauri::AppHandle, path: String) -> Result<Value, Str
         use sc2trans_core::project::RecentProjects;
         let mut recent = RecentProjects::load_named(&dir, "recent-folders.json");
         recent.forget(&path);
-        recent.save_named(&dir, "recent-folders.json").map_err(|e| format!("{e:#}"))?;
+        recent
+            .save_named(&dir, "recent-folders.json")
+            .map_err(|e| format!("{e:#}"))?;
         serde_json::to_value(recent).map_err(|e| format!("{e:#}"))
     })
     .await
@@ -779,7 +797,14 @@ async fn scan_folder(root: String) -> Result<Value, String> {
         use sc2trans_core::filekind;
         const MAX_DEPTH: usize = 6;
         const MAX_ENTRIES: usize = 2000;
-        const SKIP: [&str; 6] = [".sc2translater", ".git", "node_modules", "target", ".idea", "__pycache__"];
+        const SKIP: [&str; 6] = [
+            ".sc2translater",
+            ".git",
+            "node_modules",
+            "target",
+            ".idea",
+            "__pycache__",
+        ];
 
         let base = PathBuf::from(&root);
         let mut out: Vec<Value> = Vec::new();
@@ -788,7 +813,9 @@ async fn scan_folder(root: String) -> Result<Value, String> {
             if depth > MAX_DEPTH || out.len() >= MAX_ENTRIES {
                 continue;
             }
-            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
@@ -806,9 +833,11 @@ async fn scan_folder(root: String) -> Result<Value, String> {
                     .unwrap_or_else(|_| name.clone());
                 let linked = if c.kind == filekind::FileKind::Sc2 {
                     match sc2trans_core::link::link(&path) {
-                        sc2trans_core::link::Link::Linked { path } => {
-                            Some(path.strip_prefix(&base).map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default())
-                        }
+                        sc2trans_core::link::Link::Linked { path } => Some(
+                            path.strip_prefix(&base)
+                                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                                .unwrap_or_default(),
+                        ),
                         _ => None,
                     }
                 } else {
@@ -847,7 +876,9 @@ async fn open_file(root: String, path: String) -> Result<Value, String> {
             }
             filekind::FileKind::Sc2 => {
                 let linked = match link::link(&full) {
-                    link::Link::Linked { path } => Some(path.file_name().map(|n| n.to_string_lossy().to_string())),
+                    link::Link::Linked { path } => {
+                        Some(path.file_name().map(|n| n.to_string_lossy().to_string()))
+                    }
                     _ => None,
                 };
                 value["linked_json"] = serde_json::json!(linked);
@@ -872,7 +903,13 @@ async fn read_image_data_url(root: String, path: String) -> Result<String, Strin
         if bytes.len() as u64 > 64 * 1024 * 1024 {
             return Err("图片超过 64 MB，不加载".into());
         }
-        let mime = match full.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+        let mime = match full
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
+        {
             "png" => "image/png",
             "jpg" | "jpeg" => "image/jpeg",
             "gif" => "image/gif",
@@ -896,8 +933,16 @@ mod base64_lite {
             let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
             out.push(TABLE[(n >> 18) as usize & 63] as char);
             out.push(TABLE[(n >> 12) as usize & 63] as char);
-            out.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
-            out.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+            out.push(if chunk.len() > 1 {
+                TABLE[(n >> 6) as usize & 63] as char
+            } else {
+                '='
+            });
+            out.push(if chunk.len() > 2 {
+                TABLE[n as usize & 63] as char
+            } else {
+                '='
+            });
         }
         out
     }
@@ -1036,8 +1081,7 @@ async fn vcs_diff(
     let dir = data_dir(&app)?;
     blocking(move || {
         let repo = repo_of(&project_file, &document);
-        let text = vcs::diff(&dir, &repo, from.as_deref(), to.as_deref())
-            .map_err(|e| format!("{e:#}"))?;
+        let text = vcs::diff(&dir, &repo, from.as_deref(), to.as_deref()).map_err(|e| format!("{e:#}"))?;
         Ok(serde_json::json!({ "text": text }))
     })
     .await
@@ -1097,11 +1141,7 @@ async fn vcs_pack(
 }
 
 #[command]
-async fn vcs_unpack(
-    app: tauri::AppHandle,
-    project_file: String,
-    document: String,
-) -> Result<Value, String> {
+async fn vcs_unpack(app: tauri::AppHandle, project_file: String, document: String) -> Result<Value, String> {
     let dir = data_dir(&app)?;
     blocking(move || {
         let repo = repo_of(&project_file, &document);
@@ -1130,7 +1170,11 @@ async fn vcs_pick_pack(default_name: String) -> Option<String> {
 async fn vcs_reveal(project_file: String, document: String) -> Result<(), String> {
     blocking(move || {
         let repo = repo_of(&project_file, &document);
-        let target = if repo.is_dir() { repo } else { PathBuf::from(&project_file) };
+        let target = if repo.is_dir() {
+            repo
+        } else {
+            PathBuf::from(&project_file)
+        };
         std::process::Command::new("explorer")
             .arg(target)
             .spawn()

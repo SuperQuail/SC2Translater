@@ -197,7 +197,14 @@ fn run(cli: &Cli) -> Result<()> {
             let empty = Vec::new();
             let locales = v["locales"].as_array().unwrap_or(&empty);
             let names: Vec<&str> = locales.iter().filter_map(|l| l["locale"].as_str()).collect();
-            println!("语言目录  {}", if names.is_empty() { "（无）".to_string() } else { names.join(", ") });
+            println!(
+                "语言目录  {}",
+                if names.is_empty() {
+                    "（无）".to_string()
+                } else {
+                    names.join(", ")
+                }
+            );
             for loc in locales {
                 if let Some(files) = loc["files"].as_object() {
                     for (name, meta) in files {
@@ -218,8 +225,10 @@ fn run(cli: &Cli) -> Result<()> {
             let empty = Vec::new();
             let locales = v["locales"].as_array().unwrap_or(&empty);
             for loc in locales {
-                let files: Vec<&str> =
-                    loc["files"].as_object().map(|m| m.keys().map(|s| s.as_str()).collect()).unwrap_or_default();
+                let files: Vec<&str> = loc["files"]
+                    .as_object()
+                    .map(|m| m.keys().map(|s| s.as_str()).collect())
+                    .unwrap_or_default();
                 println!("{}: {}", loc["locale"].as_str().unwrap_or(""), files.join(", "));
             }
             if cli.json {
@@ -228,16 +237,33 @@ fn run(cli: &Cli) -> Result<()> {
             Ok(())
         }
 
-        Command::Extract { archive, out, source, target, files, all_locales } => {
+        Command::Extract {
+            archive,
+            out,
+            source,
+            target,
+            files,
+            all_locales,
+        } => {
             check_locale(source)?;
             check_locale(target)?;
-            let only = if files.is_empty() { None } else { Some(files.clone()) };
+            let only = if files.is_empty() {
+                None
+            } else {
+                Some(files.clone())
+            };
             let doc = ops::extract(archive, source, target, only, *all_locales)?;
             let value = serde_json::to_value(&doc)?;
             if let Some(path) = out {
-                std::fs::write(path, format!("{}
-", serde_json::to_string_pretty(&value)?))
-                    .with_context(|| format!("写出 {}", path.display()))?;
+                std::fs::write(
+                    path,
+                    format!(
+                        "{}
+",
+                        serde_json::to_string_pretty(&value)?
+                    ),
+                )
+                .with_context(|| format!("写出 {}", path.display()))?;
                 eprintln!("已写出 {}", path.display());
             }
             if cli.json {
@@ -288,9 +314,16 @@ fn run(cli: &Cli) -> Result<()> {
             if cli.json {
                 return print_json(&v);
             }
-            println!("源语言 {}，共 {} 个键
-", v["source_locale"].as_str().unwrap_or(""), v["source_keys"]);
-            println!("{:10} {:>14} {:>10} {:>10}  覆盖率", "语言", "期望", "已有", "缺失");
+            println!(
+                "源语言 {}，共 {} 个键
+",
+                v["source_locale"].as_str().unwrap_or(""),
+                v["source_keys"]
+            );
+            println!(
+                "{:10} {:>14} {:>10} {:>10}  覆盖率",
+                "语言", "期望", "已有", "缺失"
+            );
             for row in v["locales"].as_array().unwrap_or(&Vec::new()) {
                 let coverage = row["coverage"].as_f64().unwrap_or(0.0) * 100.0;
                 println!(
@@ -304,8 +337,11 @@ fn run(cli: &Cli) -> Result<()> {
             }
             if let Some(absent) = v["locales_absent"].as_array().filter(|a| !a.is_empty()) {
                 let list: Vec<&str> = absent.iter().filter_map(|x| x.as_str()).collect();
-                println!("
-归档里没有这些语言目录：{}", list.join(", "));
+                println!(
+                    "
+归档里没有这些语言目录：{}",
+                    list.join(", ")
+                );
             }
             println!();
             println!("{}", v["diagnosis"]["message"].as_str().unwrap_or(""));
@@ -364,7 +400,15 @@ fn run(cli: &Cli) -> Result<()> {
             Ok(())
         }
 
-        Command::Seed { archive, out, source, target, with_original, sort_keys, force } => {
+        Command::Seed {
+            archive,
+            out,
+            source,
+            target,
+            with_original,
+            sort_keys,
+            force,
+        } => {
             check_locale(source)?;
             check_locale(target)?;
             let opts = ApplyOptions {
@@ -398,7 +442,15 @@ fn run(cli: &Cli) -> Result<()> {
             Ok(())
         }
 
-        Command::Fill { archive, out, source, locales, overwrite, with_original, force } => {
+        Command::Fill {
+            archive,
+            out,
+            source,
+            locales,
+            overwrite,
+            with_original,
+            force,
+        } => {
             check_locale(source)?;
             let targets = ops::FillTargets::parse(locales)?;
             let result = ops::fill_locales(
@@ -430,10 +482,7 @@ fn run(cli: &Cli) -> Result<()> {
                     result.seeded.unwrap_or(0),
                     if result.ok { "通过" } else { "失败" }
                 );
-                println!(
-                    "体积 {} -> {} 字节",
-                    result.bytes_in, result.bytes_out
-                );
+                println!("体积 {} -> {} 字节", result.bytes_in, result.bytes_out);
             }
             if !result.ok {
                 anyhow::bail!("回读校验失败");
@@ -451,8 +500,16 @@ fn run(cli: &Cli) -> Result<()> {
             println!("头部自哈希      {}", v["header_md5_valid"]);
             println!("HET 逐字节重建  {}", v["het_roundtrip_exact"]);
             println!("BET 逐字节重建  {}", v["bet_roundtrip_exact"]);
-            println!("HET/经典表一致  {}", v["het_vs_classic_mismatch"].as_array().is_none_or(|a| a.is_empty()));
-            println!("attributes      md5 ok={} bad={}  crc ok={} bad={}", v["md5_ok"], v["md5_bad"], v["crc_ok"], v["crc_bad"]);
+            println!(
+                "HET/经典表一致  {}",
+                v["het_vs_classic_mismatch"]
+                    .as_array()
+                    .is_none_or(|a| a.is_empty())
+            );
+            println!(
+                "attributes      md5 ok={} bad={}  crc ok={} bad={}",
+                v["md5_ok"], v["md5_bad"], v["crc_ok"], v["crc_bad"]
+            );
             println!("字符串表往返    {}", v["string_tables_roundtrip_exact"]);
             println!("整体健康        {}", v["healthy"]);
             Ok(())

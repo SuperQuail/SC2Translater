@@ -51,7 +51,9 @@ pub fn locale_display(locale: &str) -> &str {
 
 /// 这张表是否面向玩家。
 pub fn is_player_facing(filename: &str) -> bool {
-    PLAYER_FACING_FILES.iter().any(|f| f.eq_ignore_ascii_case(filename))
+    PLAYER_FACING_FILES
+        .iter()
+        .any(|f| f.eq_ignore_ascii_case(filename))
 }
 
 /// 语言代码只校验形状。
@@ -75,7 +77,14 @@ pub fn locale_data_dir(locale: &str) -> String {
 
 /// 构造归档内组件名。
 pub fn component_name(locale: &str, filename: &str) -> String {
-    format!("{}{}{}{}{}", locale_data_dir(locale), '\\', LOCALIZED_DIR, '\\', filename)
+    format!(
+        "{}{}{}{}{}",
+        locale_data_dir(locale),
+        '\\',
+        LOCALIZED_DIR,
+        '\\',
+        filename
+    )
 }
 
 /// 解析组件名，返回 (locale, filename)；不是本地化字符串表则返回 None。

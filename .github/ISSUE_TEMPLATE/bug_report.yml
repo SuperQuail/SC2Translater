@@ -1,0 +1,47 @@
+name: 缺陷报告
+description: 工具行为不对、崩溃、产物有问题
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        如果是**产物被游戏或编辑器拒绝**，请在下面附上 `sc2trans verify --json` 的输出，
+        那比描述现象有用得多。
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 你做了什么、期望什么、实际发生了什么
+    validations:
+      required: true
+  - type: dropdown
+    id: entry
+    attributes:
+      label: 入口
+      options: [桌面 GUI, CLI, 两个都有]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: GUI 在开始页右下角；CLI 用 `sc2trans --version`
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开文件夹 …
+        2. 点 …
+        3. 看到 …
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 命令输出
+      render: shell
+    validations:
+      required: false

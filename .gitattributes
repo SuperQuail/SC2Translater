@@ -10,13 +10,14 @@
 *.md        text eol=lf
 *.txt       text eol=lf
 *.yml       text eol=lf
-
-# SC2 的地图脚本是 CRLF 世界，别乱动
+*.yaml      text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
 *.galaxy    text eol=crlf
 
 # 二进制归档
 *.SC2Map    binary
 *.SC2Mod    binary
 
-# 生成物
-python/uv.lock linguist-generated
+# 生成物（由 scripts/gen-vscode-theme.py 生成，评审时自动折叠）
+ui/src/styles/vscode-theme.css linguist-generated
