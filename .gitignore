@@ -3,12 +3,19 @@
 **/target/
 *.pdb
 *.exe
+# 例外：内置的 SC2Diff 是**构建输入**（tauri.conf.json 把它声明成 resource，
+# tauri-build 找不到就直接报 failed to run custom build command）。
+# 它必须入库，否则别人克隆下来编译不过 —— 本地一直有，所以这个坑只在干净克隆上才露出来。
+!/src-tauri/resources/sc2diff.exe
 
 # Node / Tauri
 node_modules/
 ui/dist/
 src-tauri/gen/
 src-tauri/target/
+
+# 发布产物目录
+/dist/
 
 # Python（只剩 scripts/ 下的构建期脚本，无 uv 工程）
 __pycache__/
